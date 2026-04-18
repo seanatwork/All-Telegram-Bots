@@ -1,0 +1,27 @@
+# Telegram
+python-telegram-bot[job-queue]==21.6
+
+# austin311bot
+pandas
+requests
+beautifulsoup4
+folium
+python-dotenv
+
+# film_bot
+httpx>=0.27
+python-decouple>=3.8
+cachetools>=5.3
+
+# gotwaterbot
+Pillow
+overpy==0.6
+geopy==2.4.1
+
+# unitconverterbot
+pint==0.24.4
+pytz==2024.1
+
+# wshnationalsbot
+MLB-StatsAPI==1.9.0
+flask==3.0.3
