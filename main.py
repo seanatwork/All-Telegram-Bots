@@ -1,8 +1,8 @@
+import asyncio
 import importlib.util
 import logging
 import os
 import sys
-import threading
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 BASE = os.path.dirname(os.path.abspath(__file__))
 
 BOTS = [
-    ("austin311bot",    "austin311_bot.py",   "austin311_bot"),
-    ("film_bot",        "film_bot.py",         "film_bot"),
-    ("gotwaterbot",     "gotwater.py",          "gotwater"),
-    ("unitconverterbot","uc.py",               "uc"),
-    ("wshnationalsbot", "wshnationalsbot.py",  "wshnationalsbot"),
+    ("austin311bot",     "austin311_bot.py",  "austin311_bot", "create_application"),
+    ("film_bot",         "film_bot.py",        "film_bot",      "build_app"),
+    ("gotwaterbot",      "gotwater.py",         "gotwater",      "build_app"),
+    ("unitconverterbot", "uc.py",              "uc",            "build_app"),
+    ("wshnationalsbot",  "wshnationalsbot.py", "wshnationalsbot","build_app"),
 ]
 
 
@@ -32,24 +32,25 @@ def load_bot(folder, filename, module_name):
     return mod
 
 
-def run_bot(name, main_fn):
+async def run_app(name, app):
     logger.info(f"Starting {name}")
-    try:
-        main_fn()
-    except Exception:
-        logger.exception(f"{name} crashed")
+    async with app:
+        await app.updater.start_polling()
+        await app.start()
+        await asyncio.Event().wait()
+
+
+async def main():
+    apps = []
+    for folder, filename, modname, build_fn in BOTS:
+        mod = load_bot(folder, filename, modname)
+        app = getattr(mod, build_fn)()
+        apps.append((modname, app))
+
+    async with asyncio.TaskGroup() as tg:
+        for name, app in apps:
+            tg.create_task(run_app(name, app))
 
 
 if __name__ == "__main__":
-    modules = [(modname, load_bot(folder, filename, modname)) for folder, filename, modname in BOTS]
-
-    threads = [
-        threading.Thread(target=run_bot, args=(modname, mod.main), name=modname, daemon=True)
-        for modname, mod in modules
-    ]
-
-    for t in threads:
-        t.start()
-
-    for t in threads:
-        t.join()
+    asyncio.run(main())
