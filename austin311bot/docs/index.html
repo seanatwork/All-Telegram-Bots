@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATX Pulse Maps</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1rem 3rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    header h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #f8fafc;
+    }
+
+    header p {
+      margin-top: 0.5rem;
+      color: #94a3b8;
+      font-size: 1rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.25rem;
+      width: 100%;
+      max-width: 900px;
+    }
+
+    .card {
+      background: #1e2230;
+      border: 1px solid #2d3348;
+      border-radius: 12px;
+      padding: 1.75rem 1.5rem;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.6rem;
+      transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    }
+
+    .card:hover {
+      background: #252b3b;
+      border-color: #4a5568;
+      transform: translateY(-2px);
+    }
+
+    .card-soon {
+      opacity: 0.45;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .card .icon {
+      font-size: 2rem;
+      line-height: 1;
+    }
+
+    .card .label {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .card .desc {
+      font-size: 0.82rem;
+      color: #64748b;
+      line-height: 1.4;
+    }
+
+    .disclaimer {
+      margin-top: 2.5rem;
+      max-width: 600px;
+      text-align: center;
+      font-size: 0.78rem;
+      color: #475569;
+      line-height: 1.5;
+    }
+
+    .disclaimer a { color: #64748b; text-decoration: none; }
+    .disclaimer a:hover { color: #94a3b8; }
+
+    footer {
+      margin-top: 3rem;
+      font-size: 0.78rem;
+      color: #475569;
+      text-align: center;
+    }
+
+    footer a { color: #64748b; text-decoration: none; }
+    footer a:hover { color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>ATX Pulse</h1>
+    <p>Austin 311 &amp; APD data maps</p>
+  </header>
+
+  <div class="grid">
+    <a class="card" href="homeless/">
+      <span class="icon">🏕️</span>
+      <span class="label">Homeless</span>
+      <span class="desc">Encampment &amp; trash 311 reports — updated daily</span>
+    </a>
+    <a class="card" href="bicycle/">
+      <span class="icon">🚲</span>
+      <span class="label">Bicycle</span>
+      <span class="desc">Bicycle infrastructure requests — updated daily</span>
+    </a>
+    <a class="card" href="graffiti/">
+      <span class="icon">🎨</span>
+      <span class="label">Graffiti</span>
+      <span class="desc">Graffiti abatement reports — updated daily</span>
+    </a>
+    <a class="card" href="traffic/">
+      <span class="icon">🚦</span>
+      <span class="label">Traffic</span>
+      <span class="desc">Traffic &amp; infrastructure issues — updated daily</span>
+    </a>
+    <a class="card" href="parking/">
+      <span class="icon">🅿️</span>
+      <span class="label">Parking</span>
+      <span class="desc">Parking enforcement reports — updated daily</span>
+    </a>
+    <a class="card" href="crime/">
+      <span class="icon">🚔</span>
+      <span class="label">Crime</span>
+      <span class="desc">APD incidents by council district — updated daily</span>
+    </a>
+    <a class="card" href="noise/">
+      <span class="icon">🔊</span>
+      <span class="label">Noise</span>
+      <span class="desc">Noise complaint reports — updated daily</span>
+    </a>
+    <a class="card" href="parks/">
+      <span class="icon">🏞️</span>
+      <span class="label">Parks</span>
+      <span class="desc">Park maintenance requests — updated daily</span>
+    </a>
+    <a class="card" href="water/">
+      <span class="icon">💧</span>
+      <span class="label">Water</span>
+      <span class="desc">Water conservation violation reports — updated daily</span>
+    </a>
+    <a class="card" href="childcare/">
+      <span class="icon">🧒</span>
+      <span class="label">Child Care</span>
+      <span class="desc">Childcare facility compliance — updated weekly</span>
+    </a>
+    <a class="card" href="animal/">
+      <span class="icon">🐾</span>
+      <span class="label">Animal Services</span>
+      <span class="desc">Loose animals, bites &amp; wildlife reports — updated daily</span>
+    </a>
+    <a class="card" href="court/">
+      <span class="icon">⚖️</span>
+      <span class="label">Courts</span>
+      <span class="desc">Municipal &amp; community court caseloads — live data</span>
+    </a>
+  </div>
+
+  <div class="disclaimer">
+    This is not a government website. I'm a private resident. All this data is openly available to everyone — you can request an API key at
+    <a href="https://data.texas.gov" target="_blank" rel="noopener">data.texas.gov</a>
+    &amp;
+    <a href="https://data.austintexas.gov" target="_blank" rel="noopener">data.austintexas.gov</a>.
+    <br /><br />
+    <a href="https://github.com/seanatwork" target="_blank" rel="noopener">Vibecoded with ❤️</a>
+  </div>
+
+  <footer>
+    Data from <a href="https://311.austintexas.gov" target="_blank" rel="noopener">Austin 311</a>
+    &amp;
+    <a href="https://data.austintexas.gov/d/fdj4-gpfu" target="_blank" rel="noopener">APD Crime Reports</a>
+    &nbsp;·&nbsp;
+    <a href="https://t.me/austin311bot" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L8.32 14.617l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.828.942z"/>
+      </svg>
+      Telegram bot
+    </a>
+  </footer>
+
+</body>
+</html>

@@ -4,3 +4,7 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+.qwen/
+*.db
+brainstorm.md
+.claude/settings.local.json
