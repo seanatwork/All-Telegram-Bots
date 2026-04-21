@@ -993,6 +993,68 @@ async def traffic_live_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 # =============================================================================
+# CRASH ALERT JOB — pings ALERT_CHAT_ID when new crash-type incidents appear
+# =============================================================================
+
+_CRASH_ALERT_TYPES = {
+    "crash urgent",
+    "collision",
+    "collision with injury",
+    "collisn/ lvng scn",
+    "collision/private property",
+    "traffic fatality",
+    "crash service",
+}
+
+_seen_crash_ids: set[str] = set()
+
+
+async def crash_alert_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = os.getenv("ALERT_CHAT_ID")
+    if not chat_id:
+        return
+    try:
+        rows = await asyncio.to_thread(_get_live_incidents)
+    except Exception as e:
+        logger.error(f"crash_alert_job fetch: {e}")
+        return
+
+    crashes = [r for r in rows
+               if r.get("issue_reported", "").lower().strip() in _CRASH_ALERT_TYPES]
+
+    first_run = not _seen_crash_ids
+    new_crashes = []
+    for r in crashes:
+        rid = r.get("traffic_report_id") or f"{r.get('published_date','')}|{r.get('address','')}"
+        if rid in _seen_crash_ids:
+            continue
+        _seen_crash_ids.add(rid)
+        if not first_run:
+            new_crashes.append(r)
+
+    for r in new_crashes:
+        label = _normalise_incident(r.get("issue_reported", "Unknown"))
+        addr = r.get("address", "Unknown location")
+        agency = r.get("agency", "")
+        lat = r.get("latitude")
+        lon = r.get("longitude")
+        msg = f"🚨 *{label}*\n📍 {addr}"
+        if agency:
+            msg += f"\n🏛️ {agency}"
+        if lat and lon:
+            msg += f"\n[Open in Maps](https://www.google.com/maps?q={lat},{lon})"
+        try:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=msg,
+                parse_mode="Markdown",
+                disable_web_page_preview=True,
+            )
+        except Exception as e:
+            logger.error(f"crash_alert_job send: {e}")
+
+
+# =============================================================================
 # CRASH STATS (Austin Crash Report Data y2wy-tgr5)
 # =============================================================================
 
@@ -3455,6 +3517,7 @@ async def childcare_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 async def echo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.info(f"echo_handler chat_id={update.message.chat_id} from={update.message.from_user.username}")
     await update.message.reply_text(
         "❓ Unknown command. Type /help for available commands or /start for the menu."
     )
@@ -3589,6 +3652,10 @@ def create_application() -> Application:
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo_handler))
     app.add_error_handler(error_handler)
+
+    # Crash alerts → ALERT_CHAT_ID (only if env var is set)
+    if os.getenv("ALERT_CHAT_ID"):
+        app.job_queue.run_repeating(crash_alert_job, interval=120, first=10)
 
     # Register commands with Telegram so they appear in autocomplete
     async def post_init(application) -> None:
