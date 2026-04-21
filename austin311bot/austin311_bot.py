@@ -1008,10 +1008,56 @@ _CRASH_ALERT_TYPES = {
 
 _seen_crash_ids: set[str] = set()
 
+# Toggle file: persists across restarts but not across redeploys (no volume on Fly).
+_ALERTS_STATE_FILE = "/tmp/crash_alerts_disabled"
+
+
+def _alerts_disabled() -> bool:
+    return os.path.exists(_ALERTS_STATE_FILE)
+
+
+def _set_alerts_disabled(disabled: bool) -> None:
+    if disabled:
+        open(_ALERTS_STATE_FILE, "w").close()
+    else:
+        try:
+            os.remove(_ALERTS_STATE_FILE)
+        except FileNotFoundError:
+            pass
+
+
+async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Toggle crash alerts. Usage: /alerts [on|off|status]"""
+    alert_chat = os.getenv("ALERT_CHAT_ID")
+    if not alert_chat:
+        await update.message.reply_text("ℹ️ Crash alerts are not configured (ALERT_CHAT_ID unset).")
+        return
+
+    # Only the configured alert chat can toggle
+    if str(update.effective_chat.id) != str(alert_chat):
+        await update.message.reply_text("⛔ This command is only available in the alert chat.")
+        return
+
+    arg = (context.args[0].lower() if context.args else "status")
+    if arg in ("off", "mute", "stop"):
+        _set_alerts_disabled(True)
+        await update.message.reply_text("🔕 Crash alerts *paused*. Use `/alerts on` to resume.", parse_mode="Markdown")
+    elif arg in ("on", "unmute", "resume", "start"):
+        _set_alerts_disabled(False)
+        await update.message.reply_text("🔔 Crash alerts *resumed*.", parse_mode="Markdown")
+    else:
+        state = "🔕 paused" if _alerts_disabled() else "🔔 active"
+        await update.message.reply_text(
+            f"Crash alerts: *{state}*\n\n`/alerts on` — resume\n`/alerts off` — pause",
+            parse_mode="Markdown",
+        )
+
 
 async def crash_alert_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = os.getenv("ALERT_CHAT_ID")
     if not chat_id:
+        return
+    if _alerts_disabled():
         return
     try:
         rows = await asyncio.to_thread(_get_live_incidents)
@@ -3654,6 +3700,7 @@ def create_application() -> Application:
     app.add_handler(CommandHandler("bars", bars_command))
     app.add_handler(CommandHandler("childcare", childcare_command))
     app.add_handler(CommandHandler("court", court_command))
+    app.add_handler(CommandHandler("alerts", alerts_command))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo_handler))
     app.add_error_handler(error_handler)
@@ -3679,6 +3726,7 @@ def create_application() -> Application:
             BotCommand("animal",   "Animal complaints — hotspots · stats · response times"),
             BotCommand("coyote",   "Coyote complaints — seasonal patterns · hotspots"),
             BotCommand("ticket",   "Look up any 311 ticket by ID"),
+            BotCommand("alerts",   "Toggle crash alerts on/off (alert chat only)"),
             BotCommand("water",            "Surface water quality — fecal coliform · DO · nutrients"),
             BotCommand("waterviolations",  "Water conservation violations — sprinklers · leaks · waste"),
             BotCommand("permits",          "Building permits — last 30 days by type · district"),
