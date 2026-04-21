@@ -28,6 +28,7 @@ class Media:
     release_date: str
     overview: str
     vote_average: float
+    popularity: float
     runtime: Optional[int]
     imdb_id: Optional[str]
     poster_url_thumb: Optional[str]
@@ -58,6 +59,7 @@ async def fetch_movie_details(movie_id: int) -> dict:
         f"/movie/{movie_id}",
         params={
             "api_key": TMDB_API_KEY,
+            "append_to_response": "external_ids",
         },
     )
     r.raise_for_status()
@@ -78,6 +80,7 @@ async def fetch_tv_details(tv_id: int) -> dict:
         f"/tv/{tv_id}",
         params={
             "api_key": TMDB_API_KEY,
+            "append_to_response": "external_ids",
         },
     )
     r.raise_for_status()
@@ -135,6 +138,7 @@ async def search_media(query: str) -> list[Media]:
                 release_date=item.get("release_date") or "",
                 overview=item.get("overview") or "",
                 vote_average=float(item.get("vote_average") or 0.0),
+                popularity=float(item.get("popularity") or 0.0),
                 runtime=None,
                 imdb_id=None,
                 poster_url_thumb=(TMDB_IMG_THUMB + item["poster_path"]) if item.get("poster_path") else None,
@@ -152,6 +156,7 @@ async def search_media(query: str) -> list[Media]:
                 release_date=item.get("first_air_date") or "",
                 overview=item.get("overview") or "",
                 vote_average=float(item.get("vote_average") or 0.0),
+                popularity=float(item.get("popularity") or 0.0),
                 runtime=None,
                 imdb_id=None,
                 poster_url_thumb=(TMDB_IMG_THUMB + item["poster_path"]) if item.get("poster_path") else None,
@@ -159,14 +164,13 @@ async def search_media(query: str) -> list[Media]:
             )
         )
 
-    # Sort by vote average and take top 25
-    media_items.sort(key=lambda x: x.vote_average, reverse=True)
+    # Sort by popularity and take top 25
+    media_items.sort(key=lambda x: x.popularity, reverse=True)
     media_items = media_items[:25]
 
-    # Fetch runtime for top 10 in parallel
-    top_media = media_items[:10]
+    # Fetch details for results in parallel to get imdb_id and runtime
     detail_tasks = []
-    for m in top_media:
+    for m in media_items:
         if m.media_type == "movie":
             detail_tasks.append(fetch_movie_details(m.id))
         else:
@@ -174,21 +178,21 @@ async def search_media(query: str) -> list[Media]:
 
     try:
         details_list = await asyncio.gather(*detail_tasks, return_exceptions=True)
-        for media, details in zip(top_media, details_list):
+        for media, details in zip(media_items, details_list):
             if isinstance(details, Exception):
-                media.runtime = None
-                media.imdb_id = None
+                continue
+            
+            if media.media_type == "movie":
+                media.runtime = details.get("runtime")
+                # imdb_id is in primary response for movies, but also in external_ids
+                media.imdb_id = details.get("imdb_id") or details.get("external_ids", {}).get("imdb_id")
             else:
-                if media.media_type == "movie":
-                    media.runtime = details.get("runtime")
-                    media.imdb_id = details.get("imdb_id")
-                else:
-                    # TV shows have episode_run_time as an array, take the first value
-                    episode_runtimes = details.get("episode_run_time", [])
-                    media.runtime = episode_runtimes[0] if episode_runtimes else None
-                    # TV shows external_ids contains imdb_id
-                    external_ids = details.get("external_ids", {})
-                    media.imdb_id = external_ids.get("imdb_id")
+                # TV shows have episode_run_time as an array, take the first value
+                episode_runtimes = details.get("episode_run_time", [])
+                media.runtime = episode_runtimes[0] if episode_runtimes else None
+                # TV shows external_ids contains imdb_id (must be requested via append_to_response)
+                external_ids = details.get("external_ids", {})
+                media.imdb_id = external_ids.get("imdb_id")
     except Exception:
         pass  # If parallel fetch fails, runtime and imdb_id stay None
 
