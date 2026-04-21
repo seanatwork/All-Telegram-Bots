@@ -1493,6 +1493,11 @@ async def parking_top_payments_cb(update: Update, context: ContextTypes.DEFAULT_
                 bar = "█" * min(10, round(count / max_loc * 10))
                 msg += f"  {bar} {name} — {count}\n"
 
+        msg += (
+            "\n⚠️ _Due to a vendor integration issue, no ParkATX app transactions "
+            "have been added to this dataset since October 2025. "
+            "Physical kiosk transactions are still being added daily._\n"
+        )
         msg += "\n_Source: [Austin Parking Meter Transactions](https://data.austintexas.gov/d/5bb2-gtef)_"
         await query.edit_message_text(msg, parse_mode="Markdown", disable_web_page_preview=True)
     except Exception as e:

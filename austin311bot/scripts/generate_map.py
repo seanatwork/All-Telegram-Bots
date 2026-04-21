@@ -46,6 +46,12 @@ def generate_parking_map(days_back: int = 90) -> tuple:
     return generate_parking_map(days_back)
 
 
+def generate_parking_trends_page(days_back: int = 180) -> tuple:
+    """Generate parking complaints trends page."""
+    from parking.trends import generate_parking_trends
+    return generate_parking_trends(days_back)
+
+
 def generate_crime_map(days_back: int = 90) -> tuple:
     """Generate APD crime choropleth map by council district."""
     from crime.crime_map import generate_crime_map
@@ -88,6 +94,7 @@ CATEGORY_MAPS = {
     "homeless": (generate_homeless_map, "homeless/index.html"),
     "traffic": (generate_traffic_map, "traffic/index.html"),
     "parking": (generate_parking_map, "parking/index.html"),
+    "parking-trends": (generate_parking_trends_page, "parking/trends/index.html"),
     "crime": (generate_crime_map, "crime/index.html"),
     "noise": (generate_noise_map, "noise/index.html"),
     "parks": (generate_parks_map, "parks/index.html"),
@@ -110,7 +117,12 @@ def main():
         sys.exit(1)
 
     generator_func, output_path = CATEGORY_MAPS[category]
-    days_back = 30 if category == "traffic" else 90
+    if category == "traffic":
+        days_back = 30
+    elif category == "parking-trends":
+        days_back = 180
+    else:
+        days_back = 90
 
     print(f"Generating {category} map (last {days_back} days)...")
     buf, summary = generator_func(days_back)
