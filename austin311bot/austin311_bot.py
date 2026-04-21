@@ -2590,12 +2590,14 @@ def _fmt_millions(amount: float) -> str:
     return f"${amount:.0f}"
 
 
-def _budget_trend(first: float, last: float) -> str:
+def _budget_trend(first: float, last: float, first_yr: str = "", last_yr: str = "") -> str:
     if not first:
         return ""
     pct = round((last - first) / first * 100)
     arrow = "📈" if pct > 5 else "📉" if pct < -5 else "➡️"
-    return f"_{arrow} {'+' if pct > 0 else ''}{pct}%_"
+    sign = "+" if pct > 0 else ""
+    span = f"FY{first_yr} → FY{last_yr}: " if first_yr and last_yr else ""
+    return f"_{arrow} {span}{sign}{pct}%_"
 
 
 def _dept_spend(dept_data: dict, fy: str) -> float:
@@ -2742,14 +2744,14 @@ def _format_homeless_budget(data: dict) -> str:
         year_strs = "  ".join(
             f"{fy_label(fy)}: {_fmt_millions(_dept_spend(dept_data, fy))}" for fy in recent
         )
-        trend = _budget_trend(_dept_spend(dept_data, first_yr), _dept_spend(dept_data, trend_yr))
+        trend = _budget_trend(_dept_spend(dept_data, first_yr), _dept_spend(dept_data, trend_yr), first_yr, trend_yr)
         msg += f"*{label}*\n{year_strs}" + (f"\n{trend}" if trend else "") + "\n\n"
 
     if grants:
         year_strs = "  ".join(
             f"{fy_label(fy)}: {_fmt_millions(_dept_spend(grants, fy))}" for fy in recent
         )
-        trend = _budget_trend(_dept_spend(grants, first_yr), _dept_spend(grants, trend_yr))
+        trend = _budget_trend(_dept_spend(grants, first_yr), _dept_spend(grants, trend_yr), first_yr, trend_yr)
         msg += f"*Grants to NGOs/Nonprofits*\n{year_strs}" + (f"\n{trend}" if trend else "") + "\n\n"
 
     msg += "*Downstream Departments:*\n"
@@ -2760,12 +2762,15 @@ def _format_homeless_budget(data: dict) -> str:
         first_spend = _dept_spend(dept_data, first_yr)
         trend_spend = _dept_spend(dept_data, trend_yr)
         last_spend = _dept_spend(dept_data, last_yr)
-        trend = _budget_trend(first_spend, trend_spend)
-        last_label = fy_label(last_yr)
+        trend = _budget_trend(first_spend, trend_spend, first_yr, trend_yr)
+        partial_suffix = (
+            f"  ·  {fy_label(last_yr)}: {_fmt_millions(last_spend)}"
+            if last_yr != trend_yr else ""
+        )
         msg += (
             f"{emoji} *{dept_name}*\n"
             f"  FY{first_yr}: {_fmt_millions(first_spend)} → "
-            f"{last_label}: {_fmt_millions(last_spend)}  {trend}\n\n"
+            f"FY{trend_yr}: {_fmt_millions(trend_spend)}{partial_suffix}  {trend}\n\n"
         )
 
     if pension:
@@ -2781,6 +2786,7 @@ def _format_homeless_budget(data: dict) -> str:
         p_trend = _budget_trend(
             pension.get(p_first, {}).get("pension", 0.0),
             pension.get(p_trend_yr, {}).get("pension", 0.0),
+            p_first, p_trend_yr,
         )
         msg += f"*Pension contributions*\n{p_strs}" + (f"\n{p_trend}" if p_trend else "") + "\n\n"
         h_strs = "  ".join(
@@ -2789,6 +2795,7 @@ def _format_homeless_budget(data: dict) -> str:
         h_trend = _budget_trend(
             pension.get(p_first, {}).get("health", 0.0),
             pension.get(p_trend_yr, {}).get("health", 0.0),
+            p_first, p_trend_yr,
         )
         msg += f"*Health/dental insurance*\n{h_strs}" + (f"\n{h_trend}" if h_trend else "") + "\n\n"
 
