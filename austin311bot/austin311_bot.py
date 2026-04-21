@@ -2601,6 +2601,9 @@ def _format_homeless_budget(data: dict) -> str:
     msg = f"🏠 *Austin Citywide Budget Impact*\n"
     msg += f"_FY{first_yr}–FY{last_yr} · actual spend where available_\n\n"
 
+    grants = data.get("_grants_to_subrecipients", {})
+    pension = data.get("_pension_benefits", {})
+
     # Calculate total for the most recent fiscal year
     total_last_year = 0.0
     for dept in _HOMELESS_DIRECT_DEPTS:
@@ -2629,7 +2632,6 @@ def _format_homeless_budget(data: dict) -> str:
         trend = _budget_trend(_dept_spend(dept_data, first_yr), _dept_spend(dept_data, trend_yr))
         msg += f"*{label}*\n{year_strs}" + (f"\n{trend}" if trend else "") + "\n\n"
 
-    grants = data.get("_grants_to_subrecipients", {})
     if grants:
         year_strs = "  ".join(
             f"{fy_label(fy)}: {_fmt_millions(_dept_spend(grants, fy))}" for fy in recent
@@ -2653,7 +2655,6 @@ def _format_homeless_budget(data: dict) -> str:
             f"{last_label}: {_fmt_millions(last_spend)}  {trend}\n\n"
         )
 
-    pension = data.get("_pension_benefits", {})
     if pension:
         pension_years = sorted(pension.keys())
         p_recent = pension_years[-5:]
