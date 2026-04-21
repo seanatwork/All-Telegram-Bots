@@ -10,6 +10,7 @@ Run locally:
 Run in CI (GitHub Actions) with AUSTIN_APP_TOKEN set for higher rate limits.
 """
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
@@ -118,9 +119,19 @@ def main():
         print(f"Map generation failed: {summary}")
         sys.exit(1)
 
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    last_ran_span = (
+        f'<span style="font-size: 11px; color: #888;">Last ran: {now_str}</span><br/>\n        '
+    )
+    html = buf.getvalue().decode("utf-8").replace(
+        '<span id="map-summary"',
+        last_ran_span + '<span id="map-summary"',
+        1,
+    )
+
     out = Path("docs") / output_path
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_bytes(buf.getvalue())
+    out.write_text(html, encoding="utf-8")
     print(f"Written {out.stat().st_size:,} bytes to {out}")
     print(summary)
 
