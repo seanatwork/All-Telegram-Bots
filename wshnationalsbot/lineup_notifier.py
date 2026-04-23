@@ -14,10 +14,40 @@ logger = get_logger(__name__)
 
 _file_lock = threading.RLock()
 
-# Track which gamePks we've already notified for (resets on restart, which is fine —
-# the window check prevents double-sends across a normal restart).
-_lineup_sent: set[int] = set()         # subscriber DMs
-_channel_lineup_sent: set[int] = set() # channel post
+_lineup_sent: set[int] = set()
+_channel_lineup_sent: set[int] = set()
+
+_LINEUP_STATE_FILE = os.path.join(os.path.dirname(SUBSCRIBERS_FILE) or ".", "lineup_state.json")
+
+
+def _load_lineup_state() -> None:
+    global _lineup_sent, _channel_lineup_sent
+    try:
+        if os.path.exists(_LINEUP_STATE_FILE):
+            with open(_LINEUP_STATE_FILE) as f:
+                data = json.load(f)
+            _lineup_sent = set(data.get("lineup_sent", []))
+            _channel_lineup_sent = set(data.get("channel_lineup_sent", []))
+            logger.info(f"Loaded lineup state ({len(_lineup_sent)} sent, {len(_channel_lineup_sent)} channel)")
+    except Exception as e:
+        logger.warning(f"Failed to load lineup state: {e}")
+
+
+def _save_lineup_state() -> None:
+    try:
+        os.makedirs(os.path.dirname(_LINEUP_STATE_FILE) or ".", exist_ok=True)
+        tmp = _LINEUP_STATE_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump({
+                "lineup_sent": list(_lineup_sent),
+                "channel_lineup_sent": list(_channel_lineup_sent),
+            }, f)
+        os.replace(tmp, _LINEUP_STATE_FILE)
+    except Exception as e:
+        logger.warning(f"Failed to save lineup state: {e}")
+
+
+_load_lineup_state()
 
 
 # ---------------------------------------------------------------------------
@@ -149,11 +179,11 @@ async def check_and_notify(context) -> None:
     try:
         game = await asyncio.to_thread(_fetch_todays_game)
         if game is None:
-            return  # No game today
+            return
 
         game_pk = game.get("gamePk")
-        if game_pk in _lineup_sent:
-            return  # Already sent for this game
+        if game_pk in _lineup_sent and game_pk in _channel_lineup_sent:
+            return  # Already fully processed for this game
 
         # Only poll within the 3-hour window before first pitch
         game_dt_str = game.get("gameDate", "")
@@ -164,11 +194,11 @@ async def check_and_notify(context) -> None:
             if hours_until > 3 or hours_until < -1:
                 return
         except Exception:
-            pass  # If we can't parse the time, attempt the check anyway
+            pass
 
         message = _format_lineup(game)
         if message is None:
-            return  # Lineup not posted yet
+            return
 
         # Post to channel
         if LINEUP_CHANNEL_ID and game_pk not in _channel_lineup_sent:
@@ -178,30 +208,33 @@ async def check_and_notify(context) -> None:
                     text=message,
                     parse_mode="HTML",
                 )
-                _channel_lineup_sent.add(game_pk)
                 logger.info(f"Lineup posted to channel {LINEUP_CHANNEL_ID} for gamePk {game_pk}")
             except Exception as e:
+                # Always mark as handled (even on error) to prevent re-posting if Telegram
+                # received the message but the response didn't make it back to us.
                 logger.warning(f"Failed to post lineup to channel: {e}")
+            finally:
+                _channel_lineup_sent.add(game_pk)
+                _save_lineup_state()
 
         # DM subscribers
         subscribers = load_subscribers()
         if not subscribers:
             logger.info("Lineup available but no subscribers to notify.")
-            return
+        else:
+            for chat_id in subscribers:
+                try:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=message,
+                        parse_mode="HTML",
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send lineup to {chat_id}: {e}")
+            logger.info(f"Lineup sent to {len(subscribers)} subscriber(s) for gamePk {game_pk}")
 
         _lineup_sent.add(game_pk)
-
-        for chat_id in subscribers:
-            try:
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=message,
-                    parse_mode="HTML",
-                )
-            except Exception as e:
-                logger.warning(f"Failed to send lineup to {chat_id}: {e}")
-
-        logger.info(f"Lineup sent to {len(subscribers)} subscriber(s) for gamePk {game_pk}")
+        _save_lineup_state()
 
     except Exception as e:
         logger.error(f"Error in lineup check_and_notify: {e}")
