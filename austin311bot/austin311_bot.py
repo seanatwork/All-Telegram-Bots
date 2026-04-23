@@ -990,112 +990,6 @@ async def traffic_live_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.edit_message_text(f"❌ Error fetching live incidents: {e}")
 
 
-# =============================================================================
-# CRASH ALERT JOB — pings ALERT_CHAT_ID when new crash-type incidents appear
-# =============================================================================
-
-_CRASH_ALERT_TYPES = {
-    "crash urgent",
-    "collision",
-    "collision with injury",
-    "collisn/ lvng scn",
-    "collision/private property",
-    "traffic fatality",
-    "crash service",
-}
-
-_seen_crash_ids: set[str] = set()
-
-# Toggle file: persists across restarts but not across redeploys (no volume on Fly).
-_ALERTS_STATE_FILE = "/tmp/crash_alerts_disabled"
-
-
-def _alerts_disabled() -> bool:
-    return os.path.exists(_ALERTS_STATE_FILE)
-
-
-def _set_alerts_disabled(disabled: bool) -> None:
-    if disabled:
-        open(_ALERTS_STATE_FILE, "w").close()
-    else:
-        try:
-            os.remove(_ALERTS_STATE_FILE)
-        except FileNotFoundError:
-            pass
-
-
-async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Toggle crash alerts. Usage: /alerts [on|off|status]"""
-    alert_chat = os.getenv("ALERT_CHAT_ID")
-    if not alert_chat:
-        await update.message.reply_text("ℹ️ Crash alerts are not configured (ALERT_CHAT_ID unset).")
-        return
-
-    # Only the configured alert chat can toggle
-    if str(update.effective_chat.id) != str(alert_chat):
-        await update.message.reply_text("⛔ This command is only available in the alert chat.")
-        return
-
-    arg = (context.args[0].lower() if context.args else "status")
-    if arg in ("off", "mute", "stop"):
-        _set_alerts_disabled(True)
-        await update.message.reply_text("🔕 Crash alerts *paused*. Use `/alerts on` to resume.", parse_mode="Markdown")
-    elif arg in ("on", "unmute", "resume", "start"):
-        _set_alerts_disabled(False)
-        await update.message.reply_text("🔔 Crash alerts *resumed*.", parse_mode="Markdown")
-    else:
-        state = "🔕 paused" if _alerts_disabled() else "🔔 active"
-        await update.message.reply_text(
-            f"Crash alerts: *{state}*\n\n`/alerts on` — resume\n`/alerts off` — pause",
-            parse_mode="Markdown",
-        )
-
-
-async def crash_alert_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = os.getenv("ALERT_CHAT_ID")
-    if not chat_id:
-        return
-    if _alerts_disabled():
-        return
-    try:
-        rows = await asyncio.to_thread(_get_live_incidents)
-    except Exception as e:
-        logger.error(f"crash_alert_job fetch: {e}")
-        return
-
-    crashes = [r for r in rows
-               if r.get("issue_reported", "").lower().strip() in _CRASH_ALERT_TYPES]
-
-    first_run = not _seen_crash_ids
-    new_crashes = []
-    for r in crashes:
-        rid = r.get("traffic_report_id") or f"{r.get('published_date','')}|{r.get('address','')}"
-        if rid in _seen_crash_ids:
-            continue
-        _seen_crash_ids.add(rid)
-        if not first_run:
-            new_crashes.append(r)
-
-    for r in new_crashes:
-        label = _normalise_incident(r.get("issue_reported", "Unknown"))
-        addr = r.get("address", "Unknown location")
-        agency = r.get("agency", "")
-        lat = r.get("latitude")
-        lon = r.get("longitude")
-        msg = f"🚨 *{label}*\n📍 {addr}"
-        if agency:
-            msg += f"\n🏛️ {agency}"
-        if lat and lon:
-            msg += f"\n[Open in Maps](https://www.google.com/maps?q={lat},{lon})"
-        try:
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=msg,
-                parse_mode="Markdown",
-                disable_web_page_preview=True,
-            )
-        except Exception as e:
-            logger.error(f"crash_alert_job send: {e}")
 
 
 # =============================================================================
@@ -3729,14 +3623,8 @@ def create_application() -> Application:
     app.add_handler(CommandHandler("bars", bars_command))
     app.add_handler(CommandHandler("childcare", childcare_command))
     app.add_handler(CommandHandler("court", court_command))
-    app.add_handler(CommandHandler("alerts", alerts_command))
-
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo_handler))
     app.add_error_handler(error_handler)
-
-    # Crash alerts → ALERT_CHAT_ID (only if env var is set)
-    if os.getenv("ALERT_CHAT_ID"):
-        app.job_queue.run_repeating(crash_alert_job, interval=120, first=10)
 
     # Register commands with Telegram so they appear in autocomplete
     async def post_init(application) -> None:
