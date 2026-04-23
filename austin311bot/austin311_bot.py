@@ -20,6 +20,17 @@ from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 
 load_dotenv()
+
+from alerts import db as alerts_db
+from alerts.handlers import (
+    build_subscribe_conversation,
+    cancel_subscription_callback,
+    deletedata_command,
+    myalerts_command,
+    unsubscribe_command,
+)
+from alerts.jobs import crime_daily_job, district_digest_job
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -3623,8 +3634,22 @@ def create_application() -> Application:
     app.add_handler(CommandHandler("bars", bars_command))
     app.add_handler(CommandHandler("childcare", childcare_command))
     app.add_handler(CommandHandler("court", court_command))
+
+    # Alert subscription handlers (ConversationHandler must precede generic message handler)
+    alerts_db.init_db()
+    app.add_handler(build_subscribe_conversation())
+    app.add_handler(CommandHandler("myalerts",    myalerts_command))
+    app.add_handler(CommandHandler("unsubscribe", unsubscribe_command))
+    app.add_handler(CommandHandler("deletedata",  deletedata_command))
+    app.add_handler(CallbackQueryHandler(cancel_subscription_callback, pattern=r"^unsub_\d+$"))
+
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo_handler))
     app.add_error_handler(error_handler)
+
+    # Alert jobs: daily at 08:00 UTC, digest every Monday at 08:00 UTC
+    app.job_queue.run_daily(crime_daily_job,    time=__import__("datetime").time(8, 0), name="crime_daily")
+    app.job_queue.run_daily(district_digest_job, time=__import__("datetime").time(8, 0),
+                            days=(0,), name="district_digest")  # Monday only
 
     # Register commands with Telegram so they appear in autocomplete
     async def post_init(application) -> None:
@@ -3643,7 +3668,10 @@ def create_application() -> Application:
             BotCommand("animal",   "Animal complaints — hotspots · stats · response times"),
             BotCommand("coyote",   "Coyote complaints — seasonal patterns · hotspots"),
             BotCommand("ticket",   "Look up any 311 ticket by ID"),
-            BotCommand("alerts",   "Toggle crash alerts on/off (alert chat only)"),
+            BotCommand("subscribe",   "Subscribe to crime alerts for your district"),
+            BotCommand("myalerts",    "View and manage your active alerts"),
+            BotCommand("unsubscribe", "Cancel all your alerts"),
+            BotCommand("deletedata",  "Delete all your stored alert data"),
             BotCommand("water",            "Surface water quality — fecal coliform · DO · nutrients"),
             BotCommand("waterviolations",  "Water conservation violations — sprinklers · leaks · waste"),
             BotCommand("permits",          "Building permits — last 30 days by type · district"),
