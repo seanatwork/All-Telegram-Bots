@@ -344,7 +344,9 @@ _HELP_TEXT = """📡 *Austin 311 Bot*
 
 _If you subscribe to alerts, we store your Telegram user ID, chat ID, and council district only. No messages or addresses are saved. /deletedata removes everything._
 
-[austin311.com](https://austin311.com) · /start — Menu · /help — This message"""
+[austin311.com](https://austin311.com) · /start — Menu · /help — This message
+
+_Bug reports & suggestions: @seansullivan_"""
 
 
 @rate_limited
