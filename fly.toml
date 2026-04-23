@@ -19,3 +19,8 @@ primary_region = 'dfw'
   cpu_kind = 'shared'
   cpus = 1
   memory_mb = 512
+
+[[mounts]]
+  source      = "austin311_data"
+  destination = "/data"
+
