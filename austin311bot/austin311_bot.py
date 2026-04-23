@@ -273,7 +273,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         [InlineKeyboardButton("ℹ️ About", callback_data="about")],
     ]
     await update.message.reply_text(
-        "📡 *Welcome to ATX Pulse!*\n\nSelect a service:",
+        "📡 *Welcome to Austin 311!*\n\nSelect a service:",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
@@ -525,7 +525,7 @@ async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         [InlineKeyboardButton("ℹ️ About", callback_data="about")],
     ]
     await query.edit_message_text(
-        "📡 *Welcome to ATX Pulse!*\n\nSelect a service:",
+        "📡 *Welcome to Austin 311!*\n\nSelect a service:",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
