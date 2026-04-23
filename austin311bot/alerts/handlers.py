@@ -7,6 +7,7 @@ Commands registered:
   /deletedata  — wipe all stored data for this user
 """
 
+import asyncio
 import logging
 import os
 
@@ -178,7 +179,7 @@ async def receive_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     address = update.message.text.strip()
     msg = await update.message.reply_text("⏳ Looking up your district...")
 
-    district = await context.application.run_in_executor(None, _geocode_to_district, address)
+    district = await asyncio.to_thread(_geocode_to_district, address)
 
     if not district:
         await msg.edit_text(
