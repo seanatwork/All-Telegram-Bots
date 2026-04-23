@@ -1,4 +1,4 @@
-app = "austin311bot"
+app = "all-telegram-bots"
 primary_region = "iad"
 
 [build]
@@ -11,6 +11,10 @@ primary_region = "iad"
 
 [processes]
   app = "python austin311_bot.py"
+
+[[mounts]]
+  source      = "austin311_data"
+  destination = "/data"
 
 [[vm]]
   cpu_kind = "shared"
