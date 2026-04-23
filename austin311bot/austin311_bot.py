@@ -2149,7 +2149,7 @@ async def crime_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         keyboard = [
             [InlineKeyboardButton(
                 "🗺️ View Map",
-                url="https://seanatwork.github.io/austin311bot-unofficial/crime/"
+                url="https://austin311.com/crime/"
             )],
             [InlineKeyboardButton(
                 "📅 Compare to 10 years ago",
@@ -2162,6 +2162,10 @@ async def crime_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             [InlineKeyboardButton(
                 "Hate Crimes",
                 callback_data="police_hate"
+            )],
+            [InlineKeyboardButton(
+                "🔔 Subscribe to crime alerts",
+                callback_data="subscribe_start"
             )],
         ]
         await update.message.reply_text(

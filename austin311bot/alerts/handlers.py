@@ -98,22 +98,32 @@ def _geocode_to_district(address: str) -> str | None:
 
 # ── /subscribe flow ────────────────────────────────────────────────────────────
 
-async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+def _type_picker_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
-        [InlineKeyboardButton(
-            f"{emoji} {label}",
-            callback_data=f"sub_type_{key}",
-        )]
-        for key, (label, emoji) in [
-            ("crime_daily",     ("Daily Crime Report",    "🚨")),
-            ("district_digest", ("Weekly District Digest","📊")),
-        ]
+        [InlineKeyboardButton("🚨 Daily Crime Report",    callback_data="sub_type_crime_daily")],
+        [InlineKeyboardButton("📊 Weekly District Digest", callback_data="sub_type_district_digest")],
+        [InlineKeyboardButton("❌ Cancel",                 callback_data="sub_cancel")],
     ]
-    keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="sub_cancel")])
+    return InlineKeyboardMarkup(keyboard)
+
+
+async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         "📬 *Choose an alert type:*",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=_type_picker_keyboard(),
+    )
+    return CHOOSE_TYPE
+
+
+async def subscribe_button_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Entry point when /subscribe is triggered from an inline button."""
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text(
+        "📬 *Choose an alert type:*",
+        parse_mode="Markdown",
+        reply_markup=_type_picker_keyboard(),
     )
     return CHOOSE_TYPE
 
@@ -289,7 +299,10 @@ async def deletedata_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 def build_subscribe_conversation() -> ConversationHandler:
     return ConversationHandler(
-        entry_points=[CommandHandler("subscribe", subscribe_command)],
+        entry_points=[
+            CommandHandler("subscribe", subscribe_command),
+            CallbackQueryHandler(subscribe_button_entry, pattern="^subscribe_start$"),
+        ],
         states={
             CHOOSE_TYPE: [
                 CallbackQueryHandler(choose_type_callback, pattern=r"^sub_(type_|cancel)"),
