@@ -279,64 +279,72 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-_HELP_TEXT = """📡 *ATX PULSE*
+_HELP_TEXT = """📡 *Austin 311 Bot*
+
+🔔 *Alerts:*
+/subscribe — Get daily crime reports or weekly digest for your district
+/myalerts — View and manage your active alerts
+/unsubscribe — Cancel all alerts
+/deletedata — Remove all your stored data
 
 🚔 *Police & Crime:*
-/crime — Recent APD incident stats (citywide)
-/safety — Crime by district with city comparison
+/crime — APD incident stats (citywide)
+/safety — Crime by district · comparison to city average
 
-💰🏦 *City Budget:*
-/budget — Homelessness services, NGO grants, pension & benefits
+💰 *City Budget:*
+/budget — Homelessness services · NGO grants · pension & benefits
+
+🏕️ *Homelessness:*
+/homeless — Encampment 311 reports · dept burden · trends · locations
 
 🚦 *Traffic & Infrastructure:*
 /traffic — Potholes · signals · live incidents · crash stats
 
 🚴 *Bicycle:*
-/bicycle — Recent complaints · stats
+/bicycle — Infrastructure complaints · recent · stats
 
-💧 *Water Quality:*
+💧 *Water:*
 /water — Surface water quality by watershed
-/waterviolations — Water conservation violations · sprinklers · leaks
+/waterviolations — Conservation violations · sprinklers · leaks
 
 🎨 *Graffiti:*
 /graffiti — Analysis · hotspots · remediation · trends
 
 🍽️ *Restaurants:*
 /rest — Worst scores · grade report
-/rest <name or address> — Search directly
+/rest <name or address> — Search by name or address
 
 🐾 *Animal Services:*
 /animal — Hotspots · stats · response times
-
-🐺 *Coyote Complaints:*
 /coyote — Seasonal patterns · hotspots · overview
 
-🔊 *Noise Complaints:*
+🔊 *Noise:*
 /noise — Hotspots · stats · response times
 
 🅿️ *Parking:*
 /parking — Citations · hot zones · stats
 
 🏞️ *Parks:*
-/parks — Hotspots · stats · resolution times
+/parks — Maintenance hotspots · stats · resolution times
 
-🎫 *Ticket Lookup:*
-/ticket <id> — Look up any 311 ticket by ID
+🏗️ *Permits & Development:*
+/permits — Building permit activity · last 30 days by type & district
 
-🏗️ *Building Permits:*
-/permits — Permit activity last 30 days
-
-🍺 *Bar of the Month:*
+🍺 *Nightlife:*
 /bars — Top TABC mixed beverage sales · biggest movers
 
 🧒 *Child Care:*
-/childcare — Austin licensed facilities · compliance flags · top deficiencies
+/childcare — Licensed facilities · compliance flags · top deficiencies
 
-🏊 *Pool Hours:* https://www.austintexas.gov/parks/locations/pools-and-splash-pads
+⚖️ *Courts:*
+/court — Municipal & community court caseloads · Prop B outcomes
 
-_This bot does not collect, store, or transmit any user data. All requests are processed anonymously._
+🎫 *Lookup:*
+/ticket <id> — Any 311 ticket by ID
 
-ℹ️ /start — Main menu  |  /help — This message"""
+_If you subscribe to alerts, we store your Telegram user ID, chat ID, and council district only. No messages or addresses are saved. /deletedata removes everything._
+
+[austin311.com](https://austin311.com) · /start — Menu · /help — This message"""
 
 
 @rate_limited
@@ -3654,32 +3662,32 @@ def create_application() -> Application:
     # Register commands with Telegram so they appear in autocomplete
     async def post_init(application) -> None:
         await application.bot.set_my_commands([
-            BotCommand("start",    "Main menu"),
-            BotCommand("crime",    "Recent APD crime stats"),
-            BotCommand("budget", "City budget — homelessness services, NGO grants, pension & benefits"),
-            BotCommand("safety",   "Crime by district — stats + city comparison"),
-            BotCommand("traffic",  "Traffic & infrastructure — signals · lights · sidewalks"),
-            BotCommand("parking",  "Parking enforcement — citations · hot zones · stats"),
-            BotCommand("parks",    "Park maintenance — hotspots · stats · resolution times"),
-            BotCommand("bicycle",  "Bicycle complaints — recent · stats"),
-            BotCommand("rest",     "Restaurant inspections — worst scores · grades · search"),
-            BotCommand("noise",    "Noise complaints — hotspots · stats · response times"),
-            BotCommand("graffiti", "Graffiti — analysis · hotspots · remediation"),
-            BotCommand("animal",   "Animal complaints — hotspots · stats · response times"),
-            BotCommand("coyote",   "Coyote complaints — seasonal patterns · hotspots"),
-            BotCommand("ticket",   "Look up any 311 ticket by ID"),
-            BotCommand("subscribe",   "Subscribe to crime alerts for your district"),
-            BotCommand("myalerts",    "View and manage your active alerts"),
-            BotCommand("unsubscribe", "Cancel all your alerts"),
-            BotCommand("deletedata",  "Delete all your stored alert data"),
-            BotCommand("water",            "Surface water quality — fecal coliform · DO · nutrients"),
-            BotCommand("waterviolations",  "Water conservation violations — sprinklers · leaks · waste"),
-            BotCommand("permits",          "Building permits — last 30 days by type · district"),
-            BotCommand("bars",      "Bar of the month — top TABC mixed beverage sales"),
-            BotCommand("childcare", "Child care licensing — Austin facilities · compliance flags"),
-            BotCommand("court",     "Court caseloads — Municipal · DACC · Prop B outcomes · demographics"),
-            BotCommand("homeless",  "Encampment & trash 311 reports — dept burden · trends · locations"),
-            BotCommand("help",      "All commands"),
+            BotCommand("subscribe",        "Subscribe to crime alerts for your district"),
+            BotCommand("myalerts",         "View and manage your active alerts"),
+            BotCommand("unsubscribe",      "Cancel all alerts"),
+            BotCommand("deletedata",       "Remove all your stored alert data"),
+            BotCommand("crime",            "APD incident stats — citywide"),
+            BotCommand("safety",           "Crime by district — stats + city comparison"),
+            BotCommand("budget",           "Homelessness services — NGO grants · pension"),
+            BotCommand("homeless",         "Encampment 311 reports — trends · locations"),
+            BotCommand("traffic",          "Traffic & infrastructure — potholes · signals · crashes"),
+            BotCommand("bicycle",          "Bicycle infrastructure complaints — recent · stats"),
+            BotCommand("water",            "Surface water quality — by watershed"),
+            BotCommand("waterviolations",  "Water conservation violations — sprinklers · leaks"),
+            BotCommand("graffiti",         "Graffiti — analysis · hotspots · remediation"),
+            BotCommand("rest",             "Restaurant inspections — worst scores · search"),
+            BotCommand("animal",           "Animal complaints — hotspots · stats · response times"),
+            BotCommand("coyote",           "Coyote complaints — seasonal patterns · hotspots"),
+            BotCommand("noise",            "Noise complaints — hotspots · stats · response times"),
+            BotCommand("parking",          "Parking enforcement — citations · hot zones · stats"),
+            BotCommand("parks",            "Park maintenance — hotspots · stats · resolution times"),
+            BotCommand("permits",          "Building permits — last 30 days by type & district"),
+            BotCommand("bars",             "TABC mixed beverage sales — top earners · movers"),
+            BotCommand("childcare",        "Child care licensing — compliance flags · deficiencies"),
+            BotCommand("court",            "Court caseloads — Municipal · DACC · Prop B outcomes"),
+            BotCommand("ticket",           "Look up any 311 ticket by ID"),
+            BotCommand("help",             "All commands"),
+            BotCommand("start",            "Main menu"),
         ])
 
     app.post_init = post_init
