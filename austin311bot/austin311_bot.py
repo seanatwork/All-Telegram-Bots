@@ -22,13 +22,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotComm
 load_dotenv()
 
 from alerts import db as alerts_db
-from alerts.handlers import (
-    build_subscribe_conversation,
-    cancel_subscription_callback,
-    deletedata_command,
-    myalerts_command,
-    unsubscribe_command,
-)
+from alerts.handlers import register_alert_handlers
 from alerts.jobs import crime_daily_job, district_digest_job
 
 from telegram.ext import (
@@ -3649,13 +3643,9 @@ def create_application() -> Application:
     app.add_handler(CommandHandler("childcare", childcare_command))
     app.add_handler(CommandHandler("court", court_command))
 
-    # Alert subscription handlers (ConversationHandler must precede generic message handler)
+    # Alert subscription handlers
     alerts_db.init_db()
-    app.add_handler(build_subscribe_conversation())
-    app.add_handler(CommandHandler("myalerts",    myalerts_command))
-    app.add_handler(CommandHandler("unsubscribe", unsubscribe_command))
-    app.add_handler(CommandHandler("deletedata",  deletedata_command))
-    app.add_handler(CallbackQueryHandler(cancel_subscription_callback, pattern=r"^unsub_\d+$"))
+    register_alert_handlers(app)
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo_handler))
     app.add_error_handler(error_handler)

@@ -1,10 +1,13 @@
 """Telegram handlers for alert subscription management.
 
-Commands registered:
-  /subscribe   — start subscription flow (ConversationHandler)
+Uses context.user_data for state instead of ConversationHandler to avoid
+PTB 21 per_message conflicts with mixed inline/text flows.
+
+Commands:
+  /subscribe   — start subscription flow
   /myalerts    — list active subscriptions
-  /unsubscribe — cancel one or all
-  /deletedata  — wipe all stored data for this user
+  /unsubscribe — cancel all alerts
+  /deletedata  — wipe all stored data
 """
 
 import asyncio
@@ -13,39 +16,34 @@ import os
 
 import requests
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import (
-    CallbackQueryHandler,
-    CommandHandler,
-    ContextTypes,
-    ConversationHandler,
-    MessageHandler,
-    filters,
-)
+from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 from alerts import db
 
 logger = logging.getLogger(__name__)
 
-# ConversationHandler states
-CHOOSE_TYPE, CHOOSE_DISTRICT, AWAIT_ADDRESS = range(3)
+# user_data keys
+_STATE     = "alert_state"
+_TYPE      = "alert_type"
+
+# States
+_AWAITING_ADDRESS = "awaiting_address"
 
 ALERT_TYPES = {
-    "crime_daily":      ("🚨 Daily Crime Report", "New incidents in your district, sent each morning"),
-    "district_digest":  ("📊 Weekly District Digest", "Week-over-week crime summary, sent every Monday"),
+    "crime_daily":     "🚨 Daily Crime Report",
+    "district_digest": "📊 Weekly District Digest",
 }
 
-DISTRICTS = [str(i) for i in range(1, 11)]
-
 DISTRICT_LABELS = {
-    "1": "District 1 (NE Austin)",
-    "2": "District 2 (SE Austin)",
-    "3": "District 3 (E Austin / Cesar Chavez)",
-    "4": "District 4 (S Austin / Oltorf)",
-    "5": "District 5 (S Austin / Slaughter)",
-    "6": "District 6 (NW / Jollyville)",
-    "7": "District 7 (N Central / Crestview)",
-    "8": "District 8 (SW / Oak Hill)",
-    "9": "District 9 (Central / Downtown)",
+    "1":  "District 1 (NE Austin)",
+    "2":  "District 2 (SE Austin)",
+    "3":  "District 3 (E Austin / Cesar Chavez)",
+    "4":  "District 4 (S Austin / Oltorf)",
+    "5":  "District 5 (S Austin / Slaughter)",
+    "6":  "District 6 (NW / Jollyville)",
+    "7":  "District 7 (N Central / Crestview)",
+    "8":  "District 8 (SW / Oak Hill)",
+    "9":  "District 9 (Central / Downtown)",
     "10": "District 10 (W Austin / Westlake Hills)",
 }
 
@@ -58,7 +56,6 @@ def _geocode_to_district(address: str) -> str | None:
     if not maps_key:
         return None
 
-    # Step 1: address → lat/lon
     try:
         geo = requests.get(
             "https://maps.googleapis.com/maps/api/geocode/json",
@@ -73,17 +70,16 @@ def _geocode_to_district(address: str) -> str | None:
         logger.error(f"geocode: {e}")
         return None
 
-    # Step 2: lat/lon → council district via ArcGIS point-in-polygon
     try:
         arcgis = requests.get(
             "https://services.arcgis.com/0L95CJ0VTaxqcmED/ArcGIS/rest/services"
             "/Council_Districts/FeatureServer/0/query",
             params={
-                "geometry": f"{lon},{lat}",
+                "geometry":     f"{lon},{lat}",
                 "geometryType": "esriGeometryPoint",
-                "spatialRel": "esriSpatialRelIntersects",
-                "outFields": "COUNCIL_DI",
-                "f": "json",
+                "spatialRel":   "esriSpatialRelIntersects",
+                "outFields":    "COUNCIL_DI",
+                "f":            "json",
             },
             timeout=10,
         ).json()
@@ -96,145 +92,142 @@ def _geocode_to_district(address: str) -> str | None:
         return None
 
 
-# ── /subscribe flow ────────────────────────────────────────────────────────────
+# ── keyboards ──────────────────────────────────────────────────────────────────
 
-def _type_picker_keyboard() -> InlineKeyboardMarkup:
-    keyboard = [
-        [InlineKeyboardButton("🚨 Daily Crime Report",    callback_data="sub_type_crime_daily")],
+def _type_picker() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚨 Daily Crime Report",     callback_data="sub_type_crime_daily")],
         [InlineKeyboardButton("📊 Weekly District Digest", callback_data="sub_type_district_digest")],
-        [InlineKeyboardButton("❌ Cancel",                 callback_data="sub_cancel")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+        [InlineKeyboardButton("❌ Cancel",                  callback_data="sub_cancel")],
+    ])
 
 
-async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text(
-        "📬 *Choose an alert type:*",
-        parse_mode="Markdown",
-        reply_markup=_type_picker_keyboard(),
-    )
-    return CHOOSE_TYPE
-
-
-async def subscribe_button_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Entry point when /subscribe is triggered from an inline button."""
-    query = update.callback_query
-    await query.answer()
-    await query.message.reply_text(
-        "📬 *Choose an alert type:*",
-        parse_mode="Markdown",
-        reply_markup=_type_picker_keyboard(),
-    )
-    return CHOOSE_TYPE
-
-
-async def choose_type_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-
-    if query.data == "sub_cancel":
-        await query.edit_message_text("Cancelled.")
-        return ConversationHandler.END
-
-    alert_type = query.data.replace("sub_type_", "")
-    context.user_data["alert_type"] = alert_type
-    label, desc = ALERT_TYPES[alert_type]
-
-    keyboard = _district_keyboard()
-    keyboard.append([InlineKeyboardButton("📍 Enter my address instead", callback_data="sub_enter_address")])
-    keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="sub_cancel")])
-
-    await query.edit_message_text(
-        f"*{label}*\n_{desc}_\n\nPick your council district:",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
-    return CHOOSE_DISTRICT
-
-
-def _district_keyboard() -> list[list[InlineKeyboardButton]]:
-    row = []
+def _district_picker() -> InlineKeyboardMarkup:
     rows = []
-    for d in DISTRICTS:
+    row = []
+    for d in [str(i) for i in range(1, 11)]:
         row.append(InlineKeyboardButton(f"D{d}", callback_data=f"sub_district_{d}"))
         if len(row) == 5:
             rows.append(row)
             row = []
     if row:
         rows.append(row)
-    return rows
+    rows.append([InlineKeyboardButton("📍 Enter my address instead", callback_data="sub_enter_address")])
+    rows.append([InlineKeyboardButton("❌ Cancel", callback_data="sub_cancel")])
+    return InlineKeyboardMarkup(rows)
 
 
-async def choose_district_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+# ── /subscribe ─────────────────────────────────────────────────────────────────
+
+async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    context.user_data.clear()
+    await update.message.reply_text(
+        "📬 *Choose an alert type:*",
+        parse_mode="Markdown",
+        reply_markup=_type_picker(),
+    )
+
+
+async def subscribe_button_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Entry from an inline button (e.g. from /crime menu)."""
     query = update.callback_query
     await query.answer()
+    context.user_data.clear()
+    await query.message.reply_text(
+        "📬 *Choose an alert type:*",
+        parse_mode="Markdown",
+        reply_markup=_type_picker(),
+    )
 
-    if query.data == "sub_cancel":
-        await query.edit_message_text("Cancelled.")
-        return ConversationHandler.END
 
-    if query.data == "sub_enter_address":
-        await query.edit_message_text(
-            "📍 Type your Austin street address or neighborhood\n"
-            "_(e.g. '6th & Lamar' or '78704')_",
-            parse_mode="Markdown",
-        )
-        return AWAIT_ADDRESS
+async def choose_type_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    alert_type = query.data.replace("sub_type_", "")
+    context.user_data[_TYPE] = alert_type
+    label = ALERT_TYPES.get(alert_type, alert_type)
+    desc = (
+        "New incidents in your district, sent each morning"
+        if alert_type == "crime_daily"
+        else "Week-over-week crime summary, sent every Monday"
+    )
+    await query.edit_message_text(
+        f"*{label}*\n_{desc}_\n\nPick your council district:",
+        parse_mode="Markdown",
+        reply_markup=_district_picker(),
+    )
 
+
+async def choose_district_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
     district = query.data.replace("sub_district_", "")
-    return await _save_subscription(update, context, district, edit=True)
+    await _save_and_confirm(query.edit_message_text, context, district)
 
 
-async def receive_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def enter_address_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    context.user_data[_STATE] = _AWAITING_ADDRESS
+    await query.edit_message_text(
+        "📍 Type your Austin street address, neighborhood, or zip code:",
+        parse_mode="Markdown",
+    )
+
+
+async def cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    context.user_data.clear()
+    await query.edit_message_text("Cancelled.")
+
+
+async def receive_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Intercept text messages only when user is in address-entry state."""
+    if context.user_data.get(_STATE) != _AWAITING_ADDRESS:
+        return  # not for us — let echo handler take it
+
     address = update.message.text.strip()
+    context.user_data.pop(_STATE, None)
     msg = await update.message.reply_text("⏳ Looking up your district...")
 
     district = await asyncio.to_thread(_geocode_to_district, address)
 
     if not district:
         await msg.edit_text(
-            "❌ Couldn't find that address. Try a street name, intersection, or zip code.\n"
-            "Or use /subscribe and pick your district directly."
+            "❌ Couldn't find that address in Austin. "
+            "Try a street name, zip code, or use /subscribe to pick your district directly."
         )
-        return ConversationHandler.END
+        return
 
-    context.user_data["geocoded_address"] = address
     await msg.delete()
-    return await _save_subscription(update, context, district, edit=False)
+    await _save_and_confirm(update.message.reply_text, context, district)
 
 
-async def _save_subscription(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-    district: str,
-    edit: bool,
-) -> int:
-    alert_type = context.user_data.get("alert_type")
-    user = update.effective_user
-    chat_id = update.effective_chat.id
+async def _save_and_confirm(reply_fn, context: ContextTypes.DEFAULT_TYPE, district: str) -> None:
+    alert_type = context.user_data.get(_TYPE)
+    if not alert_type:
+        await reply_fn("Something went wrong. Please try /subscribe again.")
+        return
 
-    db.upsert_user(user.id, chat_id)
-    db.add_subscription(user.id, alert_type, district)
+    user_id = context._user_id
+    chat_id = context._chat_id
+    db.upsert_user(user_id, chat_id)
+    db.add_subscription(user_id, alert_type, district)
+    context.user_data.clear()
 
-    label = DISTRICT_LABELS.get(district, f"District {district}")
-    type_label, _ = ALERT_TYPES[alert_type]
-    schedule = "each morning" if alert_type == "crime_daily" else "every Monday morning"
+    label      = DISTRICT_LABELS.get(district, f"District {district}")
+    type_label = ALERT_TYPES.get(alert_type, alert_type)
+    schedule   = "each morning" if alert_type == "crime_daily" else "every Monday morning"
 
-    text = (
+    await reply_fn(
         f"✅ *Subscribed!*\n\n"
         f"*Alert:* {type_label}\n"
         f"*District:* {label}\n"
         f"*Schedule:* {schedule}\n\n"
-        f"Use /myalerts to manage or /unsubscribe to stop."
+        f"Use /myalerts to manage or /unsubscribe to stop.",
+        parse_mode="Markdown",
     )
-
-    if edit and update.callback_query:
-        await update.callback_query.edit_message_text(text, parse_mode="Markdown")
-    else:
-        await update.message.reply_text(text, parse_mode="Markdown")
-
-    context.user_data.clear()
-    return ConversationHandler.END
 
 
 # ── /myalerts ──────────────────────────────────────────────────────────────────
@@ -247,19 +240,16 @@ async def myalerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return
 
-    type_labels = {k: v[0] for k, v in ALERT_TYPES.items()}
-    keyboard = []
-    lines = []
+    keyboard, lines = [], []
     for sub in subs:
-        label = f"{type_labels.get(sub['alert_type'], sub['alert_type'])} — {DISTRICT_LABELS.get(sub['district'], 'District ' + sub['district'])}"
-        lines.append(f"• {label}")
-        keyboard.append([
-            InlineKeyboardButton(f"❌ Cancel: {label[:40]}", callback_data=f"unsub_{sub['id']}")
-        ])
+        type_label = ALERT_TYPES.get(sub["alert_type"], sub["alert_type"])
+        dist_label = DISTRICT_LABELS.get(sub["district"], f"District {sub['district']}")
+        short = f"{type_label} — {dist_label}"
+        lines.append(f"• {short}")
+        keyboard.append([InlineKeyboardButton(f"❌ Cancel: {short[:45]}", callback_data=f"unsub_{sub['id']}")])
 
-    msg = "📬 *Your active alerts:*\n" + "\n".join(lines)
     await update.message.reply_text(
-        msg,
+        "📬 *Your active alerts:*\n" + "\n".join(lines),
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
@@ -270,20 +260,17 @@ async def cancel_subscription_callback(update: Update, context: ContextTypes.DEF
     await query.answer()
     sub_id = int(query.data.replace("unsub_", ""))
     removed = db.deactivate_subscription(sub_id, update.effective_user.id)
-    if removed:
-        await query.edit_message_text("✅ Alert cancelled.")
-    else:
-        await query.edit_message_text("That alert wasn't found.")
+    await query.edit_message_text("✅ Alert cancelled." if removed else "Alert not found.")
 
 
 # ── /unsubscribe ───────────────────────────────────────────────────────────────
 
 async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     count = db.deactivate_all(update.effective_user.id)
-    if count:
-        await update.message.reply_text(f"✅ Cancelled {count} alert{'s' if count != 1 else ''}.")
-    else:
-        await update.message.reply_text("You have no active alerts.")
+    await update.message.reply_text(
+        f"✅ Cancelled {count} alert{'s' if count != 1 else ''}."
+        if count else "You have no active alerts."
+    )
 
 
 # ── /deletedata ────────────────────────────────────────────────────────────────
@@ -295,25 +282,21 @@ async def deletedata_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 
-# ── conversation handler factory ───────────────────────────────────────────────
+# ── handler registration ───────────────────────────────────────────────────────
 
-def build_subscribe_conversation() -> ConversationHandler:
-    return ConversationHandler(
-        entry_points=[
-            CommandHandler("subscribe", subscribe_command),
-            CallbackQueryHandler(subscribe_button_entry, pattern="^subscribe_start$"),
-        ],
-        states={
-            CHOOSE_TYPE: [
-                CallbackQueryHandler(choose_type_callback, pattern=r"^sub_(type_|cancel)"),
-            ],
-            CHOOSE_DISTRICT: [
-                CallbackQueryHandler(choose_district_callback, pattern=r"^sub_(district_|enter_address|cancel)"),
-            ],
-            AWAIT_ADDRESS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_address),
-            ],
-        },
-        fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
-        per_message=False,
-    )
+def register_alert_handlers(app) -> None:
+    """Register all alert handlers onto the PTB Application."""
+    app.add_handler(CommandHandler("subscribe",   subscribe_command))
+    app.add_handler(CommandHandler("myalerts",    myalerts_command))
+    app.add_handler(CommandHandler("unsubscribe", unsubscribe_command))
+    app.add_handler(CommandHandler("deletedata",  deletedata_command))
+
+    app.add_handler(CallbackQueryHandler(subscribe_button_entry,      pattern=r"^subscribe_start$"))
+    app.add_handler(CallbackQueryHandler(choose_type_callback,        pattern=r"^sub_type_"))
+    app.add_handler(CallbackQueryHandler(choose_district_callback,    pattern=r"^sub_district_"))
+    app.add_handler(CallbackQueryHandler(enter_address_callback,      pattern=r"^sub_enter_address$"))
+    app.add_handler(CallbackQueryHandler(cancel_callback,             pattern=r"^sub_cancel$"))
+    app.add_handler(CallbackQueryHandler(cancel_subscription_callback,pattern=r"^unsub_\d+$"))
+
+    # Text handler for address input — must be group -1 to run before echo handler
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receive_address), group=-1)
