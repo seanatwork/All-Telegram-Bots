@@ -55,14 +55,45 @@ def _conn():
         con.close()
 
 
+def _fix_district_nullable(con: sqlite3.Connection) -> None:
+    """Rebuild subscriptions if district column has a NOT NULL constraint (old schema)."""
+    cols = {r["name"]: r for r in con.execute("PRAGMA table_info(subscriptions)").fetchall()}
+    if "district" not in cols or not cols["district"]["notnull"]:
+        return
+    # SQLite can't drop NOT NULL via ALTER — rebuild the table
+    con.executescript("""
+        CREATE TABLE IF NOT EXISTS subscriptions_new (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL REFERENCES users(user_id),
+            alert_type  TEXT NOT NULL,
+            district    TEXT,
+            params      TEXT,
+            active      INTEGER NOT NULL DEFAULT 1,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        INSERT INTO subscriptions_new
+            SELECT id, user_id, alert_type, district, params, active, created_at
+            FROM subscriptions;
+        DROP TABLE subscriptions;
+        ALTER TABLE subscriptions_new RENAME TO subscriptions;
+    """)
+
+
 def init_db() -> None:
-    with _conn() as con:
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    try:
         con.executescript(SCHEMA)
+        _fix_district_nullable(con)
         for migration in _MIGRATIONS:
             try:
                 con.execute(migration)
+                con.commit()
             except sqlite3.OperationalError:
-                pass  # column already exists
+                pass  # already applied
+    finally:
+        con.close()
 
 
 # ── users ──────────────────────────────────────────────────────────────────────
