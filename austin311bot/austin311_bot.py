@@ -333,9 +333,6 @@ _HELP_TEXT = """📡 *Austin 311 Bot*
 ⚖️ *Courts:*
 /court — Municipal & community court caseloads · Prop B outcomes
 
-🎫 *Lookup:*
-/ticket <id> — Any 311 ticket by ID
-
 _If you subscribe to alerts, we store your Telegram user ID, chat ID, and council district only. No messages or addresses are saved. /deletedata removes everything._
 
 [austin311.com](https://austin311.com) · /start — Menu · /help — This message
@@ -3619,7 +3616,6 @@ def create_application() -> Application:
     app.add_handler(CommandHandler("animal", animal_command))
     app.add_handler(CommandHandler("coyote", coyote_command))
     app.add_handler(CommandHandler("bicycle", bicycle_command))
-    app.add_handler(CommandHandler("ticket", ticket_command))
 
     # Restaurant slash command
     app.add_handler(CommandHandler("rest", restaurant_command))
@@ -3684,7 +3680,6 @@ def create_application() -> Application:
             BotCommand("bars",             "TABC mixed beverage sales — top earners · movers"),
             BotCommand("childcare",        "Child care licensing — compliance flags · deficiencies"),
             BotCommand("court",            "Court caseloads — Municipal · DACC · Prop B outcomes"),
-            BotCommand("ticket",           "Look up any 311 ticket by ID"),
             BotCommand("help",             "All commands"),
             BotCommand("start",            "Main menu"),
         ])
