@@ -197,8 +197,12 @@ async def receive_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if not district:
         await msg.edit_text(
-            "❌ Couldn't find that address in Austin. "
-            "Try a street name, zip code, or use /subscribe to pick your district directly."
+            "📍 We couldn't pin your exact district — zip codes often cross district lines.\n\n"
+            "Find yours here: [Austin Council District Map](https://www.austintexas.gov/GIS/CouncilDistrictMap)\n\n"
+            "Then pick below:",
+            parse_mode="Markdown",
+            reply_markup=_district_picker(),
+            disable_web_page_preview=True,
         )
         return
 
