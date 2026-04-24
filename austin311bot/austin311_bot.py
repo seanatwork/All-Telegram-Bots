@@ -276,7 +276,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 _HELP_TEXT = """📡 *Austin 311 Bot*
 
 🔔 *Alerts:*
-/subscribe — Get daily crime reports or weekly digest for your district
+/subscribe — Push alerts for your area:
+  · Daily crime report (by district)
+  · Weekly district crime digest
+  · Nearby 311 reports
+  · Animal incidents (loose dogs, bites, coyotes)
+  · Crashes near you
 /myalerts — View and manage your active alerts
 /unsubscribe — Cancel all alerts
 /deletedata — Remove all your stored data
@@ -333,7 +338,7 @@ _HELP_TEXT = """📡 *Austin 311 Bot*
 ⚖️ *Courts:*
 /court — Municipal & community court caseloads · Prop B outcomes
 
-_If you subscribe to alerts, we store your Telegram user ID, chat ID, and council district only. No messages or addresses are saved. /deletedata removes everything._
+_If you subscribe to alerts, we store your Telegram user ID, chat ID, and council district or approximate location only. No messages or addresses are saved. /deletedata removes everything._
 
 [austin311.com](https://austin311.com) · /start — Menu · /help — This message
 
@@ -3657,7 +3662,7 @@ def create_application() -> Application:
     # Register commands with Telegram so they appear in autocomplete
     async def post_init(application) -> None:
         await application.bot.set_my_commands([
-            BotCommand("subscribe",        "Subscribe to crime alerts for your district"),
+            BotCommand("subscribe",        "Push alerts — crime, 311, animals, crashes near you"),
             BotCommand("myalerts",         "View and manage your active alerts"),
             BotCommand("unsubscribe",      "Cancel all alerts"),
             BotCommand("deletedata",       "Remove all your stored alert data"),
