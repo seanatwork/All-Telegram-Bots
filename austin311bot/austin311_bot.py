@@ -545,15 +545,12 @@ async def about_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 @rate_limited
 async def graffiti_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    keyboard = [[InlineKeyboardButton("🗺️ Open Map", url="https://seanatwork.github.io/austin311bot-unofficial/graffiti/")]]
+    keyboard = [
+        [InlineKeyboardButton("🗺️ Open Map", url="https://seanatwork.github.io/austin311bot-unofficial/graffiti/"),
+         InlineKeyboardButton("📈 Trends", url="https://seanatwork.github.io/austin311bot-unofficial/graffiti/trends/")],
+    ]
     await update.message.reply_text(
-        "🎨 *Graffiti Abatement Reports*\n\n"
-        "https://seanatwork.github.io/austin311bot-unofficial/graffiti/\n\n"
-        "The map shows:\n"
-        "• All graffiti abatement requests\n"
-        "• Open and resolved reports\n"
-        "• Location-based clustering\n\n"
-        "Filter by status (open/closed) and time window (30d/60d/90d).",
+        "🎨 *Graffiti Abatement Reports*\n\nMap and monthly trends for graffiti abatement requests citywide. Filter by status (open/closed) and time window (30d/60d/90d).",
         parse_mode="Markdown",
         disable_web_page_preview=True,
         reply_markup=InlineKeyboardMarkup(keyboard),
@@ -1265,6 +1262,8 @@ async def noise_night_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 @rate_limited
 async def noisecomplaints_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
+        [InlineKeyboardButton("🗺️ Open Map", url="https://seanatwork.github.io/austin311bot-unofficial/noise/"),
+         InlineKeyboardButton("📈 Trends", url="https://seanatwork.github.io/austin311bot-unofficial/noise/trends/")],
         [InlineKeyboardButton("🗺️ Hotspots", callback_data="noise_hotspots"),
          InlineKeyboardButton("🕐 Peak Times", callback_data="noise_peak")],
         [InlineKeyboardButton("📋 Resolution by Type", callback_data="noise_resolution"),
@@ -2143,26 +2142,11 @@ async def crime_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         msg = _format_crime_stats(stats, label)
 
         keyboard = [
-            [InlineKeyboardButton(
-                "🗺️ View Map",
-                url="https://austin311.com/crime/"
-            )],
-            [InlineKeyboardButton(
-                "📅 Compare to 10 years ago",
-                callback_data=f"crime_compare_{start_str}_{end_str}"
-            )],
-            [InlineKeyboardButton(
-                "⚰️ Homicides (2019–present)",
-                callback_data="crime_homicides"
-            )],
-            [InlineKeyboardButton(
-                "Hate Crimes",
-                callback_data="police_hate"
-            )],
-            [InlineKeyboardButton(
-                "🔔 Subscribe to crime alerts",
-                callback_data="subscribe_start"
-            )],
+            [InlineKeyboardButton("🗺️ View Map", url="https://seanatwork.github.io/austin311bot-unofficial/crime/"),
+             InlineKeyboardButton("📈 Trends", url="https://seanatwork.github.io/austin311bot-unofficial/crime/trends/")],
+            [InlineKeyboardButton("📅 Compare to 10 years ago", callback_data=f"crime_compare_{start_str}_{end_str}")],
+            [InlineKeyboardButton("⚰️ Homicides (2019–present)", callback_data="crime_homicides")],
+            [InlineKeyboardButton("🔔 Subscribe to crime alerts", callback_data="subscribe_start")],
         ]
         await update.message.reply_text(
             msg,
@@ -3662,31 +3646,24 @@ def create_application() -> Application:
     # Register commands with Telegram so they appear in autocomplete
     async def post_init(application) -> None:
         await application.bot.set_my_commands([
-            BotCommand("subscribe",        "Push alerts — crime, 311, animals, crashes near you"),
-            BotCommand("myalerts",         "View and manage your active alerts"),
-            BotCommand("unsubscribe",      "Cancel all alerts"),
-            BotCommand("deletedata",       "Remove all your stored alert data"),
-            BotCommand("crime",            "APD incident stats — citywide"),
-            BotCommand("safety",           "Crime by district — stats + city comparison"),
-            BotCommand("budget",           "Homelessness services — NGO grants · pension"),
-            BotCommand("homeless",         "Encampment 311 reports — trends · locations"),
-            BotCommand("traffic",          "Traffic & infrastructure — potholes · signals · crashes"),
-            BotCommand("bicycle",          "Bicycle infrastructure complaints — recent · stats"),
-            BotCommand("water",            "Surface water quality — by watershed"),
-            BotCommand("waterviolations",  "Water conservation violations — sprinklers · leaks"),
-            BotCommand("graffiti",         "Graffiti — analysis · hotspots · remediation"),
-            BotCommand("rest",             "Restaurant inspections — worst scores · search"),
-            BotCommand("animal",           "Animal complaints — hotspots · stats · response times"),
-            BotCommand("coyote",           "Coyote complaints — seasonal patterns · hotspots"),
-            BotCommand("noise",            "Noise complaints — hotspots · stats · response times"),
-            BotCommand("parking",          "Parking enforcement — citations · hot zones · stats"),
-            BotCommand("parks",            "Park maintenance — hotspots · stats · resolution times"),
-            BotCommand("permits",          "Building permits — last 30 days by type & district"),
-            BotCommand("bars",             "TABC mixed beverage sales — top earners · movers"),
-            BotCommand("childcare",        "Child care licensing — compliance flags · deficiencies"),
-            BotCommand("court",            "Court caseloads — Municipal · DACC · Prop B outcomes"),
-            BotCommand("help",             "All commands"),
-            BotCommand("start",            "Main menu"),
+            BotCommand("subscribe",   "Push alerts — crime, 311, animals, crashes near you"),
+            BotCommand("myalerts",    "View and manage your active alerts"),
+            BotCommand("unsubscribe", "Cancel all alerts"),
+            BotCommand("deletedata",  "Remove all your stored alert data"),
+            BotCommand("crime",       "APD incident stats — map · trends · homicides"),
+            BotCommand("homeless",    "Encampment 311 reports — trends · locations"),
+            BotCommand("graffiti",    "Graffiti abatement — map · trends"),
+            BotCommand("noise",       "Noise complaints — map · trends · hotspots"),
+            BotCommand("parking",     "Parking complaints — map · hot zones · stats"),
+            BotCommand("traffic",     "Traffic & infrastructure — potholes · signals · crashes"),
+            BotCommand("animal",      "Animal complaints — hotspots · stats · coyotes"),
+            BotCommand("bicycle",     "Bicycle infrastructure complaints"),
+            BotCommand("parks",       "Park maintenance — hotspots · resolution times"),
+            BotCommand("water",       "Surface water quality — by watershed"),
+            BotCommand("rest",        "Restaurant inspections — worst scores · search"),
+            BotCommand("childcare",   "Child care licensing — compliance · deficiencies"),
+            BotCommand("help",        "All commands"),
+            BotCommand("start",       "Main menu"),
         ])
 
     app.post_init = post_init

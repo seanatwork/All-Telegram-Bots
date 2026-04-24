@@ -29,7 +29,9 @@ echo "Synced. Triggering map workflows..."
 for wf in generate-parking-map.yml deploy-map.yml generate-bicycle-map.yml \
           generate-graffiti-map.yml generate-parks-map.yml generate-traffic-map.yml \
           generate-noise-map.yml generate-water-map.yml generate-animal-map.yml \
-          generate-childcare-map.yml generate-crime-map.yml; do
+          generate-childcare-map.yml generate-crime-map.yml \
+          generate-graffiti-trends.yml generate-crime-trends.yml \
+          generate-noise-trends.yml generate-parking-trends.yml; do
   gh workflow run "$wf" --repo seanatwork/austin311bot-unofficial --ref main || true
 done
 echo "Done. Maps will regenerate in ~2-5 min."
