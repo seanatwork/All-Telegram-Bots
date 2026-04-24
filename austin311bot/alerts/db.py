@@ -13,16 +13,17 @@ DB_PATH = os.getenv("ALERTS_DB_PATH", "/tmp/austin311_alerts.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
-    user_id   INTEGER PRIMARY KEY,
-    chat_id   INTEGER NOT NULL,
+    user_id    INTEGER PRIMARY KEY,
+    chat_id    INTEGER NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS subscriptions (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     INTEGER NOT NULL REFERENCES users(user_id),
-    alert_type  TEXT NOT NULL,   -- 'crime_daily' | 'district_digest'
-    district    TEXT NOT NULL,   -- '1' .. '10'
+    alert_type  TEXT NOT NULL,
+    district    TEXT,           -- '1'..'10' for crime alerts
+    params      TEXT,           -- JSON for location-based alerts
     active      INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -35,6 +36,11 @@ CREATE TABLE IF NOT EXISTS sent_log (
     UNIQUE(subscription_id, data_hash)
 );
 """
+
+# Migrations for existing DBs
+_MIGRATIONS = [
+    "ALTER TABLE subscriptions ADD COLUMN params TEXT",
+]
 
 
 @contextmanager
@@ -52,6 +58,11 @@ def _conn():
 def init_db() -> None:
     with _conn() as con:
         con.executescript(SCHEMA)
+        for migration in _MIGRATIONS:
+            try:
+                con.execute(migration)
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
 
 # ── users ──────────────────────────────────────────────────────────────────────
@@ -67,16 +78,21 @@ def upsert_user(user_id: int, chat_id: int) -> None:
 
 # ── subscriptions ──────────────────────────────────────────────────────────────
 
-def add_subscription(user_id: int, alert_type: str, district: str) -> int:
+def add_subscription(
+    user_id: int,
+    alert_type: str,
+    district: str | None = None,
+    params: str | None = None,
+) -> int:
     with _conn() as con:
-        # Deactivate any existing same-type subscription for this user first
         con.execute(
-            "UPDATE subscriptions SET active=0 WHERE user_id=? AND alert_type=? AND district=?",
-            (user_id, alert_type, district),
+            "UPDATE subscriptions SET active=0 "
+            "WHERE user_id=? AND alert_type=? AND (district=? OR params=?)",
+            (user_id, alert_type, district, params),
         )
         cur = con.execute(
-            "INSERT INTO subscriptions(user_id, alert_type, district) VALUES(?,?,?)",
-            (user_id, alert_type, district),
+            "INSERT INTO subscriptions(user_id, alert_type, district, params) VALUES(?,?,?,?)",
+            (user_id, alert_type, district, params),
         )
         return cur.lastrowid
 
@@ -84,7 +100,7 @@ def add_subscription(user_id: int, alert_type: str, district: str) -> int:
 def get_active_subscriptions(alert_type: str) -> list[sqlite3.Row]:
     with _conn() as con:
         return con.execute(
-            "SELECT s.id, s.district, u.chat_id, s.user_id "
+            "SELECT s.id, s.district, s.params, u.chat_id, s.user_id "
             "FROM subscriptions s JOIN users u USING(user_id) "
             "WHERE s.alert_type=? AND s.active=1",
             (alert_type,),
@@ -94,7 +110,7 @@ def get_active_subscriptions(alert_type: str) -> list[sqlite3.Row]:
 def get_user_subscriptions(user_id: int) -> list[sqlite3.Row]:
     with _conn() as con:
         return con.execute(
-            "SELECT id, alert_type, district, created_at FROM subscriptions "
+            "SELECT id, alert_type, district, params, created_at FROM subscriptions "
             "WHERE user_id=? AND active=1 ORDER BY created_at",
             (user_id,),
         ).fetchall()
@@ -137,11 +153,10 @@ def delete_user_data(user_id: int) -> None:
 
 def already_sent(sub_id: int, data_hash: str) -> bool:
     with _conn() as con:
-        row = con.execute(
+        return con.execute(
             "SELECT 1 FROM sent_log WHERE subscription_id=? AND data_hash=?",
             (sub_id, data_hash),
-        ).fetchone()
-        return row is not None
+        ).fetchone() is not None
 
 
 def mark_sent(sub_id: int, data_hash: str) -> None:
