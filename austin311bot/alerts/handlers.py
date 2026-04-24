@@ -77,6 +77,7 @@ def _geocode_to_district(address: str) -> str | None:
             params={
                 "geometry":     f"{lon},{lat}",
                 "geometryType": "esriGeometryPoint",
+                "inSR":         "4326",
                 "spatialRel":   "esriSpatialRelIntersects",
                 "outFields":    "COUNCIL_DI",
                 "f":            "json",
@@ -85,6 +86,7 @@ def _geocode_to_district(address: str) -> str | None:
         ).json()
         features = arcgis.get("features", [])
         if not features:
+            logger.warning(f"ArcGIS returned no district for {lat},{lon}")
             return None
         return str(features[0]["attributes"]["COUNCIL_DI"])
     except Exception as e:
