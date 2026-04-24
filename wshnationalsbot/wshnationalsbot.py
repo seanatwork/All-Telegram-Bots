@@ -14,7 +14,8 @@ from mlbscores import (
 from stats import get_nationals_team_stats, get_roster_moves, get_weekly_digest, fetch_new_transactions
 from lineup_notifier import add_subscriber, remove_subscriber, check_and_notify
 from player import get_splits, get_contract
-from highlights import get_nationals_highlights
+from highlights import get_nationals_highlights, get_weekly_highlight_thumbnails
+from collage import build_collage
 from leave_calculator import build_stats, fetch_live_game, should_leave, _completed_inning
 from logger import setup_logger, get_logger
 from wshnats_config import (
@@ -512,6 +513,44 @@ def build_app():
             days=(5,),  # Friday only (0=Sun … 5=Fri)
         )
         logger.info(f"Weekly digest job scheduled: {weekly_job}")
+
+        # Sunday 10:00 AM CT — weekly highlight photo collage (disabled pending improvements)
+        async def post_weekly_collage(context) -> None:
+            return  # TODO: re-enable once collage layout is improved
+            if not LINEUP_CHANNEL_ID:
+                return
+            try:
+                from datetime import date, timedelta
+                import io as _io
+                thumbnails = await get_weekly_highlight_thumbnails()
+                if not thumbnails:
+                    logger.info("No thumbnails for weekly collage — skipping")
+                    return
+                today = date.today()
+                week_ago = today - timedelta(days=7)
+                title = f"Nationals Highlights  {week_ago.strftime('%b %-d')} – {today.strftime('%b %-d, %Y')}"
+                collage_bytes = await asyncio.to_thread(build_collage, thumbnails, title)
+                caption = (
+                    f"<b>⚾ Nationals Weekly Highlights</b>\n"
+                    f"{week_ago.strftime('%b %-d')} – {today.strftime('%b %-d, %Y')}\n\n"
+                    f"{len(thumbnails)} game recap{'s' if len(thumbnails) != 1 else ''} this week"
+                )
+                await context.bot.send_photo(
+                    chat_id=LINEUP_CHANNEL_ID,
+                    photo=_io.BytesIO(collage_bytes),
+                    caption=caption,
+                    parse_mode="HTML",
+                )
+                logger.info(f"Posted weekly collage ({len(thumbnails)} tiles) to channel")
+            except Exception as e:
+                logger.error(f"Error posting weekly collage: {e}")
+
+        collage_job = job_queue.run_daily(
+            post_weekly_collage,
+            time=time(10, 0, tzinfo=tz),
+            days=(0,),  # Sunday only (0=Sun … 6=Sat)
+        )
+        logger.info(f"Weekly collage job scheduled: {collage_job}")
 
         # Every 30 min — transaction alerts
         async def check_transactions(context) -> None:

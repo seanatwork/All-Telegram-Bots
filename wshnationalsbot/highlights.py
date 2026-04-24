@@ -3,7 +3,7 @@ import asyncio
 import time
 import requests
 from datetime import date, timedelta
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 
 from logger import get_logger
 from wshnats_config import NATIONALS_TEAM_ID
@@ -23,6 +23,88 @@ def _get_cached(key: str, ttl: float):
 
 def _set_cached(key: str, value) -> None:
     _cache[key] = (time.monotonic(), value)
+
+def _pick_best_highlight(items: list) -> Optional[dict]:
+    """Return the most Nationals-relevant highlight from a game's item list."""
+    # Prefer: game recap that isn't a condensed-game clip
+    for item in items:
+        kws = {kw.get('value') for kw in item.get('keywordsAll', [])}
+        title = item.get('headline', '')
+        if ('mlb_recap' in kws or 'game-recap' in kws) and 'Condensed' not in title:
+            return item
+    # Then: any Nationals-tagged non-condensed clip
+    for item in items:
+        kws = {kw.get('value') for kw in item.get('keywordsAll', [])}
+        if 'teamid-120' in kws and 'Condensed' not in item.get('headline', ''):
+            return item
+    # Fallback: first non-condensed item
+    for item in items:
+        if 'Condensed' not in item.get('headline', ''):
+            return item
+    return items[0] if items else None
+
+
+def _thumbnail_url(item: dict, target_width: int = 640) -> Optional[str]:
+    """Return the image URL closest to target_width at 16:9."""
+    cuts = item.get('image', {}).get('cuts', [])
+    candidates = [c for c in cuts if c.get('aspectRatio') == '16:9'] or cuts
+    if not candidates:
+        return None
+    return min(candidates, key=lambda c: abs(c['width'] - target_width))['src']
+
+
+def _fetch_weekly_thumbnails_sync() -> List[Tuple[str, bytes]]:
+    """Blocking: one thumbnail per Nationals game over the past 7 days."""
+    base_url = "https://statsapi.mlb.com/api/v1"
+    today = date.today()
+    week_ago = today - timedelta(days=7)
+
+    resp = requests.get(f"{base_url}/schedule", params={
+        "sportId": 1, "teamId": NATIONALS_TEAM_ID,
+        "startDate": week_ago.strftime("%Y-%m-%d"),
+        "endDate": today.strftime("%Y-%m-%d"),
+        "gameType": "R",
+        "fields": "dates,games,gamePk,status,abstractGameState",
+    }, timeout=15)
+    resp.raise_for_status()
+
+    game_ids = []
+    for date_entry in resp.json().get('dates', []):
+        for game in date_entry.get('games', []):
+            if game.get('status', {}).get('abstractGameState') == 'Final':
+                game_ids.append(game['gamePk'])
+
+    results: List[Tuple[str, bytes]] = []
+    for gid in game_ids[-9:]:  # at most 9 for a 3×3 grid
+        try:
+            content = requests.get(f"{base_url}/game/{gid}/content", timeout=10).json()
+            items = content.get('highlights', {}).get('highlights', {}).get('items', [])
+            if not items:
+                continue
+            pick = _pick_best_highlight(items)
+            if not pick:
+                continue
+            url = _thumbnail_url(pick, target_width=640)
+            if not url:
+                continue
+            img_resp = requests.get(url, timeout=10)
+            img_resp.raise_for_status()
+            results.append((pick.get('headline', 'Highlight'), img_resp.content))
+        except Exception as e:
+            logger.debug(f"Skipping game {gid} thumbnail: {e}")
+    return results
+
+
+async def get_weekly_highlight_thumbnails() -> List[Tuple[str, bytes]]:
+    """Async wrapper — returns list of (headline, jpeg_bytes) for the past week."""
+    cache_key = f"weekly_thumbs_{date.today()}"
+    cached = _get_cached(cache_key, 3600)
+    if cached is not None:
+        return cached
+    result = await asyncio.to_thread(_fetch_weekly_thumbnails_sync)
+    _set_cached(cache_key, result)
+    return result
+
 
 async def get_nationals_highlights() -> Optional[str]:
     """Get 3 most recent Washington Nationals highlights from MLB.com."""
