@@ -23,7 +23,7 @@ load_dotenv()
 
 from alerts import db as alerts_db
 from alerts.handlers import register_alert_handlers
-from alerts.jobs import crime_daily_job, district_digest_job, nearby_311_job
+from alerts.jobs import crime_daily_job, district_digest_job, nearby_311_job, animal_nearby_job, crash_nearby_job
 
 from telegram.ext import (
     Application,
@@ -3655,6 +3655,8 @@ def create_application() -> Application:
     app.job_queue.run_daily(district_digest_job, time=__import__("datetime").time(8, 0),
                             days=(0,), name="district_digest")  # Monday only
     app.job_queue.run_daily(nearby_311_job,      time=__import__("datetime").time(8, 0), name="nearby_311")
+    app.job_queue.run_daily(animal_nearby_job,   time=__import__("datetime").time(8, 0), name="animal_nearby")
+    app.job_queue.run_daily(crash_nearby_job,    time=__import__("datetime").time(8, 0), name="crash_nearby")
 
     # Register commands with Telegram so they appear in autocomplete
     async def post_init(application) -> None:

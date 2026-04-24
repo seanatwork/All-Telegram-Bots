@@ -1,4 +1,4 @@
-"""Background alert jobs: crime_daily, district_digest, nearby_311."""
+"""Background alert jobs: crime_daily, district_digest, nearby_311, animal_nearby, crash_nearby."""
 
 import json
 import logging
@@ -12,9 +12,26 @@ from alerts import db
 
 logger = logging.getLogger(__name__)
 
-CRIME_URL   = "https://data.austintexas.gov/resource/fdj4-gpfu.json"
-OPEN311_URL = "https://311.austintexas.gov/open311/v2/requests.json"
-CRIME_MAP   = "https://austin311.com/crime/"
+CRIME_URL      = "https://data.austintexas.gov/resource/fdj4-gpfu.json"
+OPEN311_URL    = "https://311.austintexas.gov/open311/v2/requests.json"
+INCIDENTS_URL  = "https://data.austintexas.gov/resource/dx9v-zd7x.json"
+CRIME_MAP      = "https://austin311.com/crime/"
+
+ANIMAL_CODES = {"ACLONAG", "ACLOANIM", "ACBITE2", "COAACDD", "WILDEXPO", "ACINFORM"}
+ANIMAL_LABELS = {
+    "ACLONAG":  "Loose Dog",
+    "ACLOANIM": "Loose Animal",
+    "ACBITE2":  "Animal Bite",
+    "COAACDD":  "Vicious Dog",
+    "WILDEXPO": "Wildlife / Coyote",
+    "ACINFORM": "Animal Concern",
+}
+
+CRASH_TYPES = {
+    "crash urgent", "collision", "collision with injury",
+    "collisn/ lvng scn", "collision/private property",
+    "traffic fatality", "crash service",
+}
 
 DISTRICT_LABELS = {str(i): f"District {i}" for i in range(1, 11)}
 
@@ -284,3 +301,182 @@ async def nearby_311_job(context) -> None:
                 parse_mode="Markdown", disable_web_page_preview=True)
         except Exception as e:
             logger.error(f"nearby_311 send sub={sub_id}: {e}")
+
+
+# ── shared helper for location-based jobs ─────────────────────────────────────
+
+def _load_location_sub(sub) -> tuple[float, float, float] | None:
+    """Parse (lat, lon, radius_miles) from a subscription row, or None."""
+    if not sub["params"]:
+        return None
+    try:
+        p = json.loads(sub["params"])
+        return float(p["lat"]), float(p["lon"]), float(p.get("radius_miles", 0.5))
+    except Exception:
+        return None
+
+
+async def _send_location_alert(context, sub_id: int, chat_id: int, msg: str) -> None:
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id, text=msg,
+            parse_mode="Markdown", disable_web_page_preview=True,
+        )
+    except Exception as e:
+        logger.error(f"send sub={sub_id}: {e}")
+
+
+# ── animal nearby job ──────────────────────────────────────────────────────────
+
+def _fetch_animal_recent(start: datetime) -> list[dict]:
+    """Fetch Open311 animal service requests since start, all codes in one pass."""
+    results = []
+    start_str = start.strftime("%Y-%m-%dT%H:%M:%SZ")
+    for code in ANIMAL_CODES:
+        try:
+            resp = requests.get(
+                OPEN311_URL,
+                params={
+                    "service_code": code,
+                    "start_date":   start_str,
+                    "page_size":    500,
+                },
+                timeout=20,
+            )
+            resp.raise_for_status()
+            results.extend(resp.json())
+        except Exception as e:
+            logger.error(f"animal fetch code={code}: {e}")
+    return [r for r in results if r.get("lat") and r.get("long")]
+
+
+async def animal_nearby_job(context) -> None:
+    """Daily digest of animal incidents near each subscriber's location."""
+    db.prune_sent_log()
+    now       = datetime.now(timezone.utc)
+    yesterday = now - timedelta(days=1)
+    today_str = now.strftime("%Y-%m-%d")
+
+    subs = db.get_active_subscriptions("animal_nearby")
+    if not subs:
+        return
+
+    all_incidents = _fetch_animal_recent(yesterday)
+
+    for sub in subs:
+        sub_id, chat_id = sub["id"], sub["chat_id"]
+        loc = _load_location_sub(sub)
+        if not loc or db.already_sent(sub_id, today_str):
+            continue
+
+        center_lat, center_lon, radius = loc
+        nearby = [
+            r for r in all_incidents
+            if _haversine_miles(center_lat, center_lon,
+                                float(r["lat"]), float(r["long"])) <= radius
+        ]
+        db.mark_sent(sub_id, today_str)
+        if not nearby:
+            continue
+
+        by_type: dict[str, int] = {}
+        for r in nearby:
+            label = ANIMAL_LABELS.get(r.get("service_code", ""), r.get("service_name", "Unknown"))
+            by_type[label] = by_type.get(label, 0) + 1
+
+        lines = "\n".join(
+            f"  {'🐕' if 'Dog' in t else '🐺' if 'Coyote' in t or 'Wildlife' in t else '🐾'} {t}: {c}"
+            for t, c in sorted(by_type.items(), key=lambda x: -x[1])
+        )
+        radius_label = f"{radius:.2g} mi"
+        msg = (
+            f"🐾 *Animal Incidents Near You — {yesterday.strftime('%b %-d')}*\n"
+            f"_Within {radius_label} of your location_\n\n"
+            f"*{len(nearby)}* report{'s' if len(nearby) != 1 else ''}:\n{lines}\n\n"
+            f"_/myalerts to manage_"
+        )
+        await _send_location_alert(context, sub_id, chat_id, msg)
+
+
+# ── crash nearby job ───────────────────────────────────────────────────────────
+
+def _fetch_crashes_recent(start: datetime) -> list[dict]:
+    """Fetch traffic incidents of crash type from the last 24h."""
+    try:
+        start_str = start.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        resp = requests.get(
+            INCIDENTS_URL,
+            params={
+                "$where":  f"published_date >= '{start_str}'",
+                "$limit":  1000,
+                "$select": "traffic_report_id,issue_reported,address,latitude,longitude,published_date,agency",
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        rows = resp.json()
+        return [
+            r for r in rows
+            if r.get("issue_reported", "").lower().strip() in CRASH_TYPES
+            and r.get("latitude") and r.get("longitude")
+        ]
+    except Exception as e:
+        logger.error(f"crash fetch: {e}")
+        return []
+
+
+async def crash_nearby_job(context) -> None:
+    """Daily digest of crashes near each subscriber's location."""
+    db.prune_sent_log()
+    now       = datetime.now(timezone.utc)
+    yesterday = now - timedelta(days=1)
+    today_str = now.strftime("%Y-%m-%d")
+
+    subs = db.get_active_subscriptions("crash_nearby")
+    if not subs:
+        return
+
+    all_crashes = _fetch_crashes_recent(yesterday)
+
+    for sub in subs:
+        sub_id, chat_id = sub["id"], sub["chat_id"]
+        loc = _load_location_sub(sub)
+        if not loc or db.already_sent(sub_id, today_str):
+            continue
+
+        center_lat, center_lon, radius = loc
+        nearby = [
+            r for r in all_crashes
+            if _haversine_miles(center_lat, center_lon,
+                                float(r["latitude"]), float(r["longitude"])) <= radius
+        ]
+        db.mark_sent(sub_id, today_str)
+        if not nearby:
+            continue
+
+        fatalities = sum(1 for r in nearby if "fatality" in r.get("issue_reported", "").lower())
+        injuries   = sum(1 for r in nearby if "injury" in r.get("issue_reported", "").lower())
+        lines = []
+        for r in nearby[:8]:
+            raw  = r.get("issue_reported", "Unknown").title()
+            addr = r.get("address", "Unknown location")[:50]
+            lines.append(f"  🚗 {raw} — {addr}")
+        if len(nearby) > 8:
+            lines.append(f"  _...and {len(nearby) - 8} more_")
+
+        severity = ""
+        if fatalities:
+            severity = f"⚠️ *{fatalities} fatal crash{'es' if fatalities > 1 else ''}*\n"
+        elif injuries:
+            severity = f"⚠️ *{injuries} crash{'es' if injuries > 1 else ''} with injuries*\n"
+
+        radius_label = f"{radius:.2g} mi"
+        msg = (
+            f"🚨 *Crashes Near You — {yesterday.strftime('%b %-d')}*\n"
+            f"_Within {radius_label} of your location_\n\n"
+            f"{severity}"
+            f"*{len(nearby)}* crash report{'s' if len(nearby) != 1 else ''}:\n"
+            f"\n".join(lines) + "\n\n"
+            f"_/myalerts to manage_"
+        )
+        await _send_location_alert(context, sub_id, chat_id, msg)
