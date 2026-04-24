@@ -17,7 +17,7 @@ import os
 
 import requests
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationHandlerStop, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 from alerts import db
 
@@ -286,7 +286,7 @@ async def receive_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             "❌ Couldn't geocode that address. Try a street name or intersection."
         )
         context.user_data.clear()
-        return
+        raise ApplicationHandlerStop
 
     lat, lon = coords
 
@@ -298,7 +298,7 @@ async def receive_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             parse_mode="Markdown",
             reply_markup=_radius_picker(),
         )
-        return
+        raise ApplicationHandlerStop
 
     # Crime alerts — look up district
     district = await asyncio.to_thread(_latlon_to_district, lat, lon)
@@ -311,7 +311,7 @@ async def receive_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             reply_markup=_district_picker(),
             disable_web_page_preview=True,
         )
-        return
+        raise ApplicationHandlerStop
 
     await msg.delete()
     user = update.effective_user
@@ -327,6 +327,7 @@ async def receive_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         f"Use /myalerts to manage or /unsubscribe to stop.",
         parse_mode="Markdown",
     )
+    raise ApplicationHandlerStop
 
 
 # ── /myalerts ──────────────────────────────────────────────────────────────────
