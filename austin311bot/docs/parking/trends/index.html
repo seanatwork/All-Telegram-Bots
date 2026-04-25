@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>ATX Pulse — Parking Complaints Trends</title>
+  <title>Austin 311 — Parking Complaints Trends</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -62,6 +62,14 @@
     footer a:hover { color: #94a3b8; }
     @media (max-width: 520px) { .stat-value { font-size: 1rem; } .chart-container { height: 260px; } }
   </style>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-TS158R7XSN"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-TS158R7XSN');
+</script>
 </head>
 <body>
 
@@ -71,7 +79,7 @@
     <div id="last-ran">Last ran: 2026-04-21 20:25 UTC</div>
     <div class="btn-row">
       <a class="fbtn" href="../">← Parking Map</a>
-      <a class="fbtn" href="../../">ATX Pulse Home</a>
+      <a class="fbtn" href="../../">Austin 311 Home</a>
     </div>
   </div>
 
@@ -129,7 +137,7 @@
     &nbsp;·&nbsp;
     <a href="../">← Parking Map</a>
     &nbsp;·&nbsp;
-    <a href="../../">← ATX Pulse</a>
+    <a href="../../">← Austin 311</a>
   </footer>
 
   <script>

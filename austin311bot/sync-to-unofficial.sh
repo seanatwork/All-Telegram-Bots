@@ -20,6 +20,8 @@ netlify.toml
 railway.json
 sync-to-unofficial.sh
 EOF
+# Sync landing page separately (docs/ is excluded above to protect workflow-generated maps)
+cp "$SRC/docs/index.html" "$WORK/docs/index.html"
 cd "$WORK"
 git add -A
 git diff --cached --quiet && { echo "Nothing to sync."; exit 0; }
