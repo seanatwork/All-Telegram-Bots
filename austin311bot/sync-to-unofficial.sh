@@ -30,6 +30,14 @@ mkdir -p "$WORK/docs/noise/trends"
 cp "$SRC/docs/noise/trends/index.html"  "$WORK/docs/noise/trends/index.html"
 mkdir -p "$WORK/docs/crime/trends"
 cp "$SRC/docs/crime/trends/index.html"  "$WORK/docs/crime/trends/index.html"
+mkdir -p "$WORK/docs/crashes"
+cp "$SRC/docs/crashes/index.html"       "$WORK/docs/crashes/index.html"
+mkdir -p "$WORK/docs/crashes/trends"
+cp "$SRC/docs/crashes/trends/index.html" "$WORK/docs/crashes/trends/index.html"
+mkdir -p "$WORK/docs/fun"
+cp "$SRC/docs/fun/index.html"           "$WORK/docs/fun/index.html"
+mkdir -p "$WORK/docs/homeless/trends"
+cp "$SRC/docs/homeless/trends/index.html" "$WORK/docs/homeless/trends/index.html"
 cd "$WORK"
 git add -A
 git diff --cached --quiet && { echo "Nothing to sync."; exit 0; }
@@ -42,7 +50,7 @@ for wf in generate-parking-map.yml deploy-map.yml generate-bicycle-map.yml \
           generate-childcare-map.yml generate-crime-map.yml \
           generate-graffiti-trends.yml generate-crime-trends.yml \
           generate-noise-trends.yml generate-parking-trends.yml \
-          generate-budget.yml; do
+          generate-budget.yml generate-homeless-trends.yml; do
   gh workflow run "$wf" --repo seanatwork/austin311bot-unofficial --ref main || true
 done
 echo "Done. Maps will regenerate in ~2-5 min."
