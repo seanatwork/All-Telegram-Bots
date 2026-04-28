@@ -20,20 +20,29 @@ netlify.toml
 railway.json
 sync-to-unofficial.sh
 EOF
-# Sync landing page separately (docs/ is excluded above to protect workflow-generated maps)
-cp "$SRC/docs/index.html" "$WORK/docs/index.html"
+# Sync landing page + small hand-crafted/pre-generated docs (maps excluded above — too large)
+cp "$SRC/docs/index.html"               "$WORK/docs/index.html"
+cp "$SRC/docs/budget/index.html"        "$WORK/docs/budget/index.html"
+cp "$SRC/docs/court/index.html"         "$WORK/docs/court/index.html"
+cp "$SRC/docs/court/trends/index.html"  "$WORK/docs/court/trends/index.html"
+cp "$SRC/docs/parking/trends/index.html" "$WORK/docs/parking/trends/index.html"
+mkdir -p "$WORK/docs/noise/trends"
+cp "$SRC/docs/noise/trends/index.html"  "$WORK/docs/noise/trends/index.html"
+mkdir -p "$WORK/docs/crime/trends"
+cp "$SRC/docs/crime/trends/index.html"  "$WORK/docs/crime/trends/index.html"
 cd "$WORK"
 git add -A
 git diff --cached --quiet && { echo "Nothing to sync."; exit 0; }
 git -c user.name="sync" -c user.email="sync@local" commit -qm "sync code from All-Telegram-Bots"
 git push -q
-echo "Synced. Triggering map workflows..."
+echo "Synced. Triggering map and trends workflows..."
 for wf in generate-parking-map.yml deploy-map.yml generate-bicycle-map.yml \
           generate-graffiti-map.yml generate-parks-map.yml generate-traffic-map.yml \
           generate-noise-map.yml generate-water-map.yml generate-animal-map.yml \
           generate-childcare-map.yml generate-crime-map.yml \
           generate-graffiti-trends.yml generate-crime-trends.yml \
-          generate-noise-trends.yml generate-parking-trends.yml; do
+          generate-noise-trends.yml generate-parking-trends.yml \
+          generate-budget.yml; do
   gh workflow run "$wf" --repo seanatwork/austin311bot-unofficial --ref main || true
 done
 echo "Done. Maps will regenerate in ~2-5 min."
