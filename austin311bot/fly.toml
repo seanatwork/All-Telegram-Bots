@@ -8,6 +8,7 @@ primary_region = "iad"
 
 [deploy]
   strategy = "immediate"
+  max_unavailable = 0
 
 [processes]
   app = "python austin311_bot.py"
