@@ -636,7 +636,7 @@ def format_resolution(data: dict) -> str:
 # Type-filter sidebar injected into every generated parks map.
 # The JS scans marker tooltips at runtime (format: "Open: Grounds Maintenance")
 # and builds a per-type index so markers can be added/removed from clusters.
-_TYPE_FILTER_HTML = """
+_TYPE_FILTER_HTML = r"""
     <div id="type-sidebar" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:white;padding:10px 12px;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,0.3);z-index:9999;font-family:sans-serif;max-height:80vh;overflow-y:auto;min-width:168px;display:none;">
       <div style="font-size:12px;font-weight:700;color:#333;margin-bottom:5px;border-bottom:1px solid #eee;padding-bottom:4px;">Filter by Type</div>
       <div id="type-btn-list"></div>
