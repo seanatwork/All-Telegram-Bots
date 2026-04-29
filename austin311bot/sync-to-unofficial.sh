@@ -43,14 +43,15 @@ git add -A
 git diff --cached --quiet && { echo "Nothing to sync."; exit 0; }
 git -c user.name="sync" -c user.email="sync@local" commit -qm "sync code from All-Telegram-Bots"
 git push -q
-echo "Synced. Triggering map and trends workflows..."
-for wf in generate-parking-map.yml deploy-map.yml generate-bicycle-map.yml \
-          generate-graffiti-map.yml generate-parks-map.yml generate-traffic-map.yml \
-          generate-noise-map.yml generate-water-map.yml generate-animal-map.yml \
-          generate-childcare-map.yml generate-crime-map.yml \
-          generate-graffiti-trends.yml generate-crime-trends.yml \
-          generate-noise-trends.yml generate-parking-trends.yml \
-          generate-budget.yml generate-homeless-trends.yml; do
-  gh workflow run "$wf" --repo seanatwork/austin311bot-unofficial --ref main || true
-done
-echo "Done. Maps will regenerate in ~2-5 min."
+# echo "Synced. Triggering map and trends workflows..."
+# for wf in generate-parking-map.yml deploy-map.yml generate-bicycle-map.yml \
+#           generate-graffiti-map.yml generate-parks-map.yml generate-traffic-map.yml \
+#           generate-noise-map.yml generate-water-map.yml generate-animal-map.yml \
+#           generate-childcare-map.yml generate-crime-map.yml \
+#           generate-graffiti-trends.yml generate-crime-trends.yml \
+#           generate-noise-trends.yml \
+#           generate-budget.yml generate-homeless-trends.yml; do
+#   gh workflow run "$wf" --repo seanatwork/austin311bot-unofficial --ref main || true
+# done
+# echo "Done. Maps will regenerate in ~2-5 min."
+echo "Synced. Workflows will pick up changes on their next scheduled run."
