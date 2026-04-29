@@ -34,10 +34,13 @@ def load_bot(folder, filename, module_name):
 
 async def run_app(name, app):
     logger.info(f"Starting {name}")
-    async with app:
-        await app.updater.start_polling()
-        await app.start()
-        await asyncio.Event().wait()
+    try:
+        async with app:
+            await app.start()
+            await app.updater.start_polling()
+            await asyncio.Event().wait()
+    except Exception:
+        logger.exception(f"{name} crashed and will not restart")
 
 
 async def main():
