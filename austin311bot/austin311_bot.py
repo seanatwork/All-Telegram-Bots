@@ -253,6 +253,7 @@ async def _send_chunked(target, text: str, parse_mode: str = "Markdown", reply_m
 @rate_limited
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
+        [InlineKeyboardButton("🔔 Alerts & Subscriptions", callback_data="alerts_menu")],
         [InlineKeyboardButton("🚔 Police & Crime", callback_data="service_police")],
         [InlineKeyboardButton("💰🏦 City Budget", callback_data="service_budget")],
         [InlineKeyboardButton("🍽️ Restaurants", callback_data="service_restaurants")],
@@ -457,6 +458,7 @@ async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     query = update.callback_query
     await query.answer()
     keyboard = [
+        [InlineKeyboardButton("🔔 Alerts & Subscriptions", callback_data="alerts_menu")],
         [InlineKeyboardButton("🚔 Police & Crime", callback_data="service_police")],
         [InlineKeyboardButton("💰🏦 City Budget", callback_data="service_budget")],
         [InlineKeyboardButton("🍽️ Restaurants", callback_data="service_restaurants")],
@@ -464,6 +466,24 @@ async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     ]
     await query.edit_message_text(
         "📡 *Welcome to Austin 311!*\n\nSelect a service:",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+
+
+@rate_limited
+async def alerts_menu_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    keyboard = [
+        [InlineKeyboardButton("🔔 Subscribe to alerts",  callback_data="subscribe_start")],
+        [InlineKeyboardButton("📬 My active alerts",     callback_data="alerts_myalerts")],
+        [InlineKeyboardButton("🔕 Unsubscribe all",      callback_data="alerts_unsubscribe")],
+        [InlineKeyboardButton("🗑️ Delete my data",       callback_data="alerts_deletedata")],
+        [InlineKeyboardButton("🔙 Back",                 callback_data="back_to_main")],
+    ]
+    await query.edit_message_text(
+        "🔔 *Alerts & Subscriptions*\n\nGet push notifications for crime, 311 reports, animal incidents, and crashes near you.",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
@@ -3458,7 +3478,21 @@ def create_application() -> Application:
     if not token:
         raise ValueError("AUSTIN311_BOT_TOKEN environment variable is not set.")
 
-    app = Application.builder().token(token).build()
+    async def post_init(application) -> None:
+        await application.bot.set_my_commands([
+            BotCommand("subscribe",   "Push alerts — crime, 311, animals, crashes near you"),
+            BotCommand("myalerts",    "View and manage your active alerts"),
+            BotCommand("unsubscribe", "Cancel all alerts"),
+            BotCommand("deletedata",  "Remove all your stored alert data"),
+            BotCommand("crime",       "APD incident stats — map · trends · homicides"),
+            BotCommand("safety",      "Crime by district — compare to city average"),
+            BotCommand("budget",      "City budget — homelessness services · spending"),
+            BotCommand("rest",        "Restaurant inspections — worst scores · search"),
+            BotCommand("help",        "All commands"),
+            BotCommand("start",       "Main menu"),
+        ])
+
+    app = Application.builder().token(token).post_init(post_init).build()
 
     # Core
     app.add_handler(CommandHandler("start", start))
@@ -3466,8 +3500,9 @@ def create_application() -> Application:
 
     # Inline menu navigation
     app.add_handler(CallbackQueryHandler(service_menu, pattern="^service_"))
-    app.add_handler(CallbackQueryHandler(back_to_main, pattern="^back_to_main"))
-    app.add_handler(CallbackQueryHandler(about_cb, pattern="^about$"))
+    app.add_handler(CallbackQueryHandler(back_to_main,    pattern="^back_to_main"))
+    app.add_handler(CallbackQueryHandler(alerts_menu_cb,  pattern="^alerts_menu$"))
+    app.add_handler(CallbackQueryHandler(about_cb,        pattern="^about$"))
 
     # Restaurant inline
     app.add_handler(CallbackQueryHandler(restaurants_lowscores_cb, pattern="^restaurants_lowscores"))
@@ -3504,23 +3539,6 @@ def create_application() -> Application:
     app.job_queue.run_daily(nearby_311_job,      time=__import__("datetime").time(8, 0), name="nearby_311")
     app.job_queue.run_daily(animal_nearby_job,   time=__import__("datetime").time(8, 0), name="animal_nearby")
     app.job_queue.run_daily(crash_nearby_job,    time=__import__("datetime").time(8, 0), name="crash_nearby")
-
-    # Register commands with Telegram so they appear in autocomplete
-    async def post_init(application) -> None:
-        await application.bot.set_my_commands([
-            BotCommand("subscribe",   "Push alerts — crime, 311, animals, crashes near you"),
-            BotCommand("myalerts",    "View and manage your active alerts"),
-            BotCommand("unsubscribe", "Cancel all alerts"),
-            BotCommand("deletedata",  "Remove all your stored alert data"),
-            BotCommand("crime",       "APD incident stats — map · trends · homicides"),
-            BotCommand("safety",      "Crime by district — compare to city average"),
-            BotCommand("budget",      "City budget — homelessness services · spending"),
-            BotCommand("rest",        "Restaurant inspections — worst scores · search"),
-            BotCommand("help",        "All commands"),
-            BotCommand("start",       "Main menu"),
-        ])
-
-    app.post_init = post_init
 
     return app
 
