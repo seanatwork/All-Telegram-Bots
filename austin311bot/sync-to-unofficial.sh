@@ -20,30 +20,19 @@ netlify.toml
 railway.json
 sync-to-unofficial.sh
 EOF
-# Sync landing page + small hand-crafted/pre-generated docs (maps excluded above — too large)
+# Sync hand-crafted docs only — DO NOT add workflow-generated files here.
+# Workflow-generated files (crime, water, childcare, budget, parking/trends,
+# noise/trends, homeless/trends, graffiti/trends, etc.) are owned by the batch
+# workflows on austin311bot-unofficial; syncing local stale copies overwrites them.
 cp "$SRC/docs/index.html"               "$WORK/docs/index.html"
-cp "$SRC/docs/budget/index.html"        "$WORK/docs/budget/index.html"
 cp "$SRC/docs/court/index.html"         "$WORK/docs/court/index.html"
 cp "$SRC/docs/court/trends/index.html"  "$WORK/docs/court/trends/index.html"
-cp "$SRC/docs/parking/trends/index.html" "$WORK/docs/parking/trends/index.html"
-mkdir -p "$WORK/docs/noise/trends"
-cp "$SRC/docs/noise/trends/index.html"  "$WORK/docs/noise/trends/index.html"
-mkdir -p "$WORK/docs/crime/trends"
-cp "$SRC/docs/crime/trends/index.html"  "$WORK/docs/crime/trends/index.html"
-mkdir -p "$WORK/docs/crime"
-cp "$SRC/docs/crime/index.html"         "$WORK/docs/crime/index.html"
-mkdir -p "$WORK/docs/water"
-cp "$SRC/docs/water/index.html"         "$WORK/docs/water/index.html"
-mkdir -p "$WORK/docs/childcare"
-cp "$SRC/docs/childcare/index.html"     "$WORK/docs/childcare/index.html"
 mkdir -p "$WORK/docs/crashes"
 cp "$SRC/docs/crashes/index.html"       "$WORK/docs/crashes/index.html"
 mkdir -p "$WORK/docs/crashes/trends"
 cp "$SRC/docs/crashes/trends/index.html" "$WORK/docs/crashes/trends/index.html"
 mkdir -p "$WORK/docs/fun"
 cp "$SRC/docs/fun/index.html"           "$WORK/docs/fun/index.html"
-mkdir -p "$WORK/docs/homeless/trends"
-cp "$SRC/docs/homeless/trends/index.html" "$WORK/docs/homeless/trends/index.html"
 mkdir -p "$WORK/docs/restaurants"
 cp "$SRC/docs/restaurants/index.html"   "$WORK/docs/restaurants/index.html"
 cd "$WORK"
