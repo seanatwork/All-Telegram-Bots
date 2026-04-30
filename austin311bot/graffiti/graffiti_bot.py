@@ -139,6 +139,86 @@ def _fetch_graffiti(days_back: int = 90) -> list:
     return all_records
 
 
+def fetch_graffiti_monthly(months_back: int = 12) -> list:
+    """Fetch graffiti records month-by-month to ensure complete data coverage.
+
+    The Open311 API returns records in chronological order (oldest first), so a
+    single 365-day request only returns the oldest ~90 days before hitting the
+    per-page cap. Fetching month by month ensures every period is fully covered.
+
+    Args:
+        months_back: Number of months to fetch
+
+    Returns:
+        A flat list of graffiti records across all months.
+    """
+    now = _utc_now()
+    all_records: list = []
+    seen_ids: set = set()
+
+    # Calculate months to fetch
+    current_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    start_month = current_month - timedelta(days=30 * months_back)
+    start_month = start_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    months_to_fetch = []
+    while start_month <= current_month:
+        months_to_fetch.append(start_month)
+        if start_month.month == 12:
+            start_month = start_month.replace(year=start_month.year + 1, month=1)
+        else:
+            start_month = start_month.replace(month=start_month.month + 1)
+
+    url = f"{OPEN311_BASE_URL}/requests.json"
+    session = _get_session()
+
+    for month_start in reversed(months_to_fetch):  # Newest first
+        # Determine month end
+        if month_start.year == now.year and month_start.month == now.month:
+            month_end = now
+        else:
+            if month_start.month == 12:
+                month_end = month_start.replace(year=month_start.year + 1, month=1)
+            else:
+                month_end = month_start.replace(month=month_start.month + 1)
+
+        page = 1
+        while page <= MAX_PAGES:
+            params = {
+                "service_code": Config.SERVICE_CODE,
+                "start_date": _isoformat_z(month_start),
+                "end_date": _isoformat_z(month_end),
+                "per_page": 100,
+                "page": page,
+                "extensions": "true",
+            }
+
+            try:
+                data = open311_get(session, url, params)
+            except Exception as e:
+                logger.warning(f"API error for {month_start}: {e}")
+                break
+
+            if not isinstance(data, list) or not data:
+                break
+
+            for r in data:
+                sid = r.get("service_request_id")
+                if sid and sid not in seen_ids:
+                    seen_ids.add(sid)
+                    r["_service_label"] = "Graffiti Abatement"
+                    r["_service_code"] = Config.SERVICE_CODE
+                    all_records.append(r)
+
+            if len(data) < 100:
+                break
+
+            page += 1
+            time.sleep(0.5 if API_KEY else 1.0)
+
+    return all_records
+
+
 # =============================================================================
 # ANALYZE COMMAND
 # =============================================================================
