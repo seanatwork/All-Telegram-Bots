@@ -38,6 +38,8 @@ mkdir -p "$WORK/docs/fun"
 cp "$SRC/docs/fun/index.html"           "$WORK/docs/fun/index.html"
 mkdir -p "$WORK/docs/homeless/trends"
 cp "$SRC/docs/homeless/trends/index.html" "$WORK/docs/homeless/trends/index.html"
+mkdir -p "$WORK/docs/restaurants"
+cp "$SRC/docs/restaurants/index.html"   "$WORK/docs/restaurants/index.html"
 cd "$WORK"
 git add -A
 git diff --cached --quiet && { echo "Nothing to sync."; exit 0; }
