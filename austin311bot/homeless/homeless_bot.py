@@ -845,7 +845,7 @@ def generate_encampment_map(days_back: int = 30) -> tuple[Optional[io.BytesIO], 
             <button id="btn-open" onclick="toggleStatus('open')" class="fbtn active">🔴 Open</button>
             <button id="btn-closed" onclick="toggleStatus('closed')" class="fbtn active">🟢 Closed</button>
             <span style="margin: 0 4px; color: #ccc;">|</span>
-            <button id="btn-cleanup" onclick="toggleCleanup()" class="fbtn active" style="background:#7c3aed;border-color:#7c3aed;">🧹 Cleanup Sites ({len(cleanup_sites)})</button>
+            <button id="btn-cleanup" onclick="toggleCleanup()" class="fbtn" style="background:#7c3aed;border-color:#7c3aed;color:white;">🧹 Cleanup Sites ({len(cleanup_sites)})</button>
         </div>
     </div>
     <style>
