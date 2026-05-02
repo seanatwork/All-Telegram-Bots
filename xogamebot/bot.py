@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from html import escape as escape_html
 
 from telegram import (
     InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultArticle,
@@ -11,7 +12,6 @@ from telegram.ext import (
     ApplicationBuilder, CallbackContext, CallbackQueryHandler, CommandHandler,
     InlineQueryHandler,
 )
-from telegram.helpers import escape_html
 
 import emojis
 from data import get_game, reset_game
