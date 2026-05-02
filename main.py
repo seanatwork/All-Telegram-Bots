@@ -20,6 +20,7 @@ BOTS = [
     ("wshnationalsbot",  "wshnationalsbot.py", "wshnationalsbot","build_app"),
     ("unobot",           "bot.py",             "unobot",        "build_app"),
     ("xogamebot",        "bot.py",             "xogamebot",     "build_app"),
+    ("blackjackbot",     "bot.py",             "blackjack_bot",  "build_app"),
 ]
 
 
@@ -54,11 +55,27 @@ async def run_app(name, mod, build_fn):
         try:
             async with app:
                 await app.start()
-                await app.updater.start_polling()
+                if app.updater:
+                    await app.updater.start_polling()
                 await asyncio.Event().wait()
-            return
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            logger.info(f"Stopping {name}...")
+            if app.updater and app.updater.running:
+                await app.updater.stop()
+            if app.running:
+                await app.stop()
+            raise
         except Exception:
             logger.exception(f"{name} crashed, retrying in {delay}s")
+            # Ensure app is stopped before retrying
+            try:
+                if app.updater and app.updater.running:
+                    await app.updater.stop()
+                if app.running:
+                    await app.stop()
+            except Exception:
+                logger.exception(f"Error while stopping {name} after crash")
+            
             await asyncio.sleep(delay)
             delay = min(delay * 2, 60)
 
@@ -67,6 +84,7 @@ async def main():
     optional_token_env = {
         "unobot": "UNO_BOT_TOKEN",
         "xogamebot": "XO_BOT_TOKEN",
+        "blackjack_bot": "BLACKJACK_BOT_TOKEN",
     }
 
     bots = []
