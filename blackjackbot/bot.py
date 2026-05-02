@@ -5,7 +5,7 @@ import pathlib
 
 from telegram.ext import ApplicationBuilder
 
-from blackjackbot.blackjack_config import BOT_TOKEN, USE_WEBHOOK, WEBHOOK_IP, WEBHOOK_PORT, WEBHOOK_URL
+from blackjack_config import BOT_TOKEN, USE_WEBHOOK, WEBHOOK_IP, WEBHOOK_PORT, WEBHOOK_URL
 from blackjackbot import handlers, error_handler
 from blackjackbot.gamestore import GameStore
 

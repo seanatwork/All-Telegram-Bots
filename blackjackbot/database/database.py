@@ -23,7 +23,7 @@ class Database(object):
         if self._initialized:
             return
 
-        from blackjackbot.blackjack_config import DATABASE_PATH
+        from blackjack_config import DATABASE_PATH
         if DATABASE_PATH:
             database_path = DATABASE_PATH
             # Ensure the directory for the custom path exists
