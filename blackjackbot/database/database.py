@@ -23,9 +23,9 @@ class Database(object):
         if self._initialized:
             return
 
-        import config
-        if config.DATABASE_PATH:
-            database_path = config.DATABASE_PATH
+        from blackjackbot.blackjack_config import DATABASE_PATH
+        if DATABASE_PATH:
+            database_path = DATABASE_PATH
             # Ensure the directory for the custom path exists
             os.makedirs(os.path.dirname(database_path), exist_ok=True)
         else:

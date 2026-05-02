@@ -5,7 +5,7 @@ import pathlib
 
 from telegram.ext import ApplicationBuilder
 
-import config
+from blackjackbot.blackjack_config import BOT_TOKEN, USE_WEBHOOK, WEBHOOK_IP, WEBHOOK_PORT, WEBHOOK_URL
 from blackjackbot import handlers, error_handler
 from blackjackbot.gamestore import GameStore
 
@@ -18,7 +18,7 @@ async def stale_game_cleaner(context):
 
 def build_app():
     """Build and return the Telegram application instance."""
-    application = ApplicationBuilder().token(config.BOT_TOKEN).build()
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
 
     for handler in handlers:
         application.add_handler(handler)
@@ -39,13 +39,13 @@ if __name__ == '__main__':
     
     application = build_app()
     
-    if config.USE_WEBHOOK:
+    if USE_WEBHOOK:
         logger.info("Starting webhook...")
         application.run_webhook(
-            listen=config.WEBHOOK_IP,
-            port=config.WEBHOOK_PORT,
-            url_path=config.BOT_TOKEN,
-            webhook_url=config.WEBHOOK_URL
+            listen=WEBHOOK_IP,
+            port=WEBHOOK_PORT,
+            url_path=BOT_TOKEN,
+            webhook_url=WEBHOOK_URL
         )
     else:
         logger.info("Starting polling...")
