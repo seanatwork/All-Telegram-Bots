@@ -23,6 +23,7 @@
 - `ALERTS_DB_PATH`
 - `AUSTINAPIKEY`
 - `UNO_BOT_TOKEN`
+- `XO_BOT_TOKEN`
 
 ## Uno Bot (`unobot/`)
 
@@ -32,3 +33,12 @@ Integrated from [mau_mau_bot](https://github.com/jh0ker/mau_mau_bot). Ported fro
 - Token: read from `UNO_BOT_TOKEN` secret directly in `bot.py:build_app()`
 - `pony==0.7.19` is its only extra dependency (in `unobot/requirements.txt`, installed at build time)
 - To deploy after setting the token: `fly secrets set UNO_BOT_TOKEN=<token> --app all-telegram-bots && fly deploy --app all-telegram-bots`
+
+## XO Game Bot (`xogamebot/`)
+
+Tic-tac-toe over inline mode, ported from [reza00farjam/XO-Game-Bot](https://github.com/reza00farjam/XO-Game-Bot). Original used Pyrogram (MTProto); port uses PTB v21 like all other bots — no `API_ID`/`API_HASH` needed. Skipped automatically if `XO_BOT_TOKEN` is unset.
+
+- Token: read from `XO_BOT_TOKEN` secret directly in `bot.py:build_app()`
+- Inline mode must be enabled in BotFather (`/setinline`)
+- Game state is in-memory only (capped at 100 games via LRU); games disappear on restart
+- No extra dependencies

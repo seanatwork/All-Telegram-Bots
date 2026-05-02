@@ -43,6 +43,7 @@ class Game(object):
     def __init__(self, chat):
         self.chat = chat
         self.last_card = None
+        self.owner = list(ADMIN_LIST) if ADMIN_LIST else []
 
         self.deck = Deck()
 

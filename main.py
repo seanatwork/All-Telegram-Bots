@@ -19,6 +19,7 @@ BOTS = [
     ("unitconverterbot", "uc.py",              "uc",            "build_app"),
     ("wshnationalsbot",  "wshnationalsbot.py", "wshnationalsbot","build_app"),
     ("unobot",           "bot.py",             "unobot",        "build_app"),
+    ("xogamebot",        "bot.py",             "xogamebot",     "build_app"),
 ]
 
 
@@ -63,10 +64,16 @@ async def run_app(name, mod, build_fn):
 
 
 async def main():
+    optional_token_env = {
+        "unobot": "UNO_BOT_TOKEN",
+        "xogamebot": "XO_BOT_TOKEN",
+    }
+
     bots = []
     for folder, filename, modname, build_fn in BOTS:
-        if modname == "unobot" and not os.environ.get("UNO_BOT_TOKEN"):
-            logger.warning("UNO_BOT_TOKEN not set — skipping Uno bot")
+        token_env = optional_token_env.get(modname)
+        if token_env and not os.environ.get(token_env):
+            logger.warning(f"{token_env} not set — skipping {modname}")
             continue
         mod = load_bot(folder, filename, modname)
         bots.append((modname, mod, build_fn))

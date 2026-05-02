@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import datetime
 
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton, Update
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton, InlineQueryResultsButton, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder, InlineQueryHandler, ChosenInlineResultHandler,
@@ -454,11 +454,13 @@ async def reply_to_query(update: Update, context: CallbackContext):
         else:
             add_gameinfo(game, results)
         for result in results:
+            result._unfreeze()
             result.id += ':%d' % player.anti_cheat
         if players and game and len(players) > 1:
             switch = _('Current game: {game}').format(game=game.chat.title)
+    button = InlineQueryResultsButton(text=switch, start_parameter='select') if switch else None
     await answer_async(context.bot, update.inline_query.id, results, cache_time=0,
-                       switch_pm_text=switch, switch_pm_parameter='select')
+                       button=button)
 
 
 @game_locales
