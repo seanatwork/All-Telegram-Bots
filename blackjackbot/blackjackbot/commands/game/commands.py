@@ -1,10 +1,19 @@
 # -*- coding: utf-8 -*-
+import asyncio
+import logging
 
 from telegram.constants import ParseMode
+from telegram.error import RetryAfter, TimedOut
 
 import blackjack.errors as errors
 from blackjack.game import BlackJackGame
-from blackjackbot.commands.util import html_mention, get_game_keyboard, get_join_keyboard, get_start_keyboard, remove_inline_keyboard
+from blackjackbot.commands.util import (
+    html_mention,
+    get_game_keyboard,
+    get_join_keyboard,
+    get_start_keyboard,
+    remove_inline_keyboard,
+)
 from blackjackbot.commands.util.decorators import needs_active_game
 from blackjackbot.errors import NoActiveGameException
 from blackjackbot.gamestore import GameStore
@@ -13,15 +22,46 @@ from blackjackbot.util import get_cards_string
 from database import Database
 from .functions import create_game, players_turn, next_player, is_button_affiliated
 
+logger = logging.getLogger(__name__)
+
+# Minimum delay between Telegram API calls to avoid flood control.
+# (Telegram allows ~30 messages/sec in groups, but bots in supergroups
+#  get stricter treatment; 0.5 s is a safe floor for rapid edit+reply sequences.)
+_API_COOLDOWN = 0.5
+
+
+async def _safe_api_call(coro, retries=2):
+    """Execute an API call with retry logic for RetryAfter & TimedOut errors."""
+    for attempt in range(retries + 1):
+        try:
+            return await coro
+        except RetryAfter as e:
+            wait = e.retry_after
+            logger.warning(
+                "Flood control hit, retrying after %.1fs (attempt %d/%d)",
+                wait, attempt + 1, retries + 1,
+            )
+            await asyncio.sleep(wait)
+        except TimedOut:
+            logger.warning(
+                "Telegram API timed out, retrying (attempt %d/%d)",
+                attempt + 1, retries + 1,
+            )
+            await asyncio.sleep(_API_COOLDOWN * (attempt + 1))
+    # Last attempt – let it raise if it fails
+    return await coro
+
 
 async def start_cmd(update, context):
-    """Handles messages contianing the /start command. Starts a game for a specific user"""
+    """Handles messages containing the /start command. Starts a game for a specific user"""
     user = update.effective_user
     chat = update.effective_chat
     lang_id = Database().get_lang_id(chat.id)
     translator = Translator(lang_id=lang_id)
 
-    Database().add_user(user.id, user.language_code, user.first_name, user.last_name, user.username)
+    Database().add_user(
+        user.id, user.language_code, user.first_name, user.last_name, user.username
+    )
 
     try:
         GameStore().get_game(update.effective_chat.id)
@@ -58,7 +98,9 @@ async def start_callback(update, context):
         await update.callback_query.answer(translator("mp_not_enough_players_callback"))
         return
     except errors.InsufficientPermissionsException:
-        await update.callback_query.answer(translator("mp_only_creator_start_callback").format(user.first_name))
+        await update.callback_query.answer(
+            translator("mp_only_creator_start_callback").format(user.first_name)
+        )
         return
 
     if game.type != BlackJackGame.Type.SINGLEPLAYER:
@@ -69,7 +111,13 @@ async def start_callback(update, context):
     else:
         players_are = ""
 
-    await update.effective_message.edit_text(translator("game_starts_now").format(players_are, get_cards_string(game.dealer, lang_id)))
+    # Edit the message first, then throttle before sending the player's turn
+    await update.effective_message.edit_text(
+        translator("game_starts_now").format(
+            players_are, get_cards_string(game.dealer, lang_id)
+        )
+    )
+    await asyncio.sleep(_API_COOLDOWN)
     await players_turn(update, context)
 
 
@@ -95,7 +143,9 @@ async def stop_cmd(update, context):
         game.stop(user_id)
         await update.effective_message.reply_text(translator("game_ended"))
     except errors.InsufficientPermissionsException:
-        await update.effective_message.reply_text(translator("mp_only_creator_can_end"))
+        await update.effective_message.reply_text(
+            translator("mp_only_creator_can_end")
+        )
 
 
 @needs_active_game
@@ -115,18 +165,29 @@ async def join_callback(update, context):
 
     try:
         game.add_player(user.id, user.first_name)
-        await update.effective_message.edit_text(text=translator("mp_request_join").format(game.get_player_list()),
-                                           reply_markup=get_join_keyboard(game.id, lang_id))
-        await update.callback_query.answer(translator("mp_join_callback").format(user.first_name))
+        await update.effective_message.edit_text(
+            text=translator("mp_request_join").format(game.get_player_list()),
+            reply_markup=get_join_keyboard(game.id, lang_id),
+        )
+        await update.callback_query.answer(
+            translator("mp_join_callback").format(user.first_name)
+        )
 
         # If players are full, replace join keyboard with start keyboard
         if len(game.players) >= game.MAX_PLAYERS:
-            await update.effective_message.edit_reply_markup(reply_markup=get_start_keyboard(lang_id))
+            await asyncio.sleep(_API_COOLDOWN)
+            await update.effective_message.edit_reply_markup(
+                reply_markup=get_start_keyboard(lang_id)
+            )
     except errors.GameAlreadyRunningException:
         await remove_inline_keyboard(update, context)
-        await update.callback_query.answer(translator("mp_game_already_begun_callback"))
+        await update.callback_query.answer(
+            translator("mp_game_already_begun_callback")
+        )
     except errors.MaxPlayersReachedException:
-        await update.effective_message.edit_reply_markup(reply_markup=get_start_keyboard(lang_id))
+        await update.effective_message.edit_reply_markup(
+            reply_markup=get_start_keyboard(lang_id)
+        )
         await update.callback_query.answer(translator("mp_max_players_callback"))
     except errors.PlayerAlreadyExistingException:
         await update.callback_query.answer(translator("mp_already_joined_callback"))
@@ -152,26 +213,47 @@ async def hit_callback(update, context):
 
     try:
         if user.id != player.user_id:
-            await update.callback_query.answer(translator("mp_not_your_turn_callback").format(user.first_name))
+            await update.callback_query.answer(
+                translator("mp_not_your_turn_callback").format(user.first_name)
+            )
             return
 
         game.draw_card()
         player_cards = get_cards_string(player, lang_id)
-        text = translator("your_cards_are").format(user_mention, player.cardvalue, player_cards)
-        await update.effective_message.edit_text(text=text, parse_mode=ParseMode.HTML, reply_markup=get_game_keyboard(game.id, lang_id))
+        text = translator("your_cards_are").format(
+            user_mention, player.cardvalue, player_cards
+        )
+
+        # Edit the message with the latest cards, then throttle
+        await update.effective_message.edit_text(
+            text=text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_game_keyboard(game.id, lang_id),
+        )
     except errors.PlayerBustedException:
         player_cards = get_cards_string(player, lang_id)
-        text = (translator("your_cards_are") + "\n\n" + translator("you_busted")).format(user_mention, player.cardvalue, player_cards)
-        await update.effective_message.edit_text(text=text, parse_mode=ParseMode.HTML, reply_markup=None)
+        text = (translator("your_cards_are") + "\n\n" + translator("you_busted")).format(
+            user_mention, player.cardvalue, player_cards
+        )
+        await update.effective_message.edit_text(
+            text=text, parse_mode=ParseMode.HTML, reply_markup=None
+        )
+        await asyncio.sleep(_API_COOLDOWN)
         await next_player(update, context)
     except errors.PlayerGot21Exception:
         player_cards = get_cards_string(player, lang_id)
         if player.has_blackjack():
-            text = (translator("your_cards_are") + "\n\n" + translator("got_blackjack")).format(user_mention, player.cardvalue, player_cards)
+            text = (translator("your_cards_are") + "\n\n" + translator("got_blackjack")).format(
+                user_mention, player.cardvalue, player_cards
+            )
         else:
-            text = (translator("your_cards_are") + "\n\n" + translator("got_21")).format(user_mention, player.cardvalue, player_cards)
-
-        await update.effective_message.edit_text(text=text, parse_mode=ParseMode.HTML, reply_markup=None)
+            text = (translator("your_cards_are") + "\n\n" + translator("got_21")).format(
+                user_mention, player.cardvalue, player_cards
+            )
+        await update.effective_message.edit_text(
+            text=text, parse_mode=ParseMode.HTML, reply_markup=None
+        )
+        await asyncio.sleep(_API_COOLDOWN)
         await next_player(update, context)
 
 
@@ -192,8 +274,14 @@ async def stand_callback(update, context):
 
 async def newgame_callback(update, context):
     await remove_inline_keyboard(update, context)
+    await asyncio.sleep(_API_COOLDOWN)
     await start_cmd(update, context)
 
 
 async def rules_cmd(update, context):
-    await update.effective_message.reply_text("Rules:\n\n- Black Jack pays 3 to 2\n- Dealer must stand on 17 and must draw to 16\n- Insurance pays 2 to 1")
+    await update.effective_message.reply_text(
+        "Rules:\n\n"
+        "- Black Jack pays 3 to 2\n"
+        "- Dealer must stand on 17 and must draw to 16\n"
+        "- Insurance pays 2 to 1"
+    )

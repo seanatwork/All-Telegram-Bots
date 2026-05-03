@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import asyncio
 import logging
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -14,6 +15,10 @@ from blackjackbot.util import get_cards_string
 from database import Database
 
 logger = logging.getLogger(__name__)
+
+# Minimum seconds between Telegram API calls to avoid flood control (Telegram allows ~30 msgs/sec in groups,
+# but bots in supergroups get stricter treatment; 0.5 s is a safe floor for rapid edit+reply sequences.)
+_API_COOLDOWN = 0.5
 
 
 async def is_button_affiliated(update, context, game, lang_id):
@@ -41,6 +46,9 @@ async def players_turn(update, context):
 
     logger.info("Player's turn: {}".format(player))
     player_cards = get_cards_string(player, lang_id)
+
+    # Small delay to avoid flooding Telegram with rapid edits + new messages
+    await asyncio.sleep(_API_COOLDOWN)
 
     # Check if player already has 21 or a BlackJack before their move. If so, automatically jump to the next player.
     # We need reply_text here, because we must send a new message (this is the first message for the player)!
@@ -74,15 +82,19 @@ async def next_player(update, context):
         await remove_inline_keyboard(update, context)
         game.next_player()
     except NoPlayersLeftException:
-        # TODO merge messages
-        await update.effective_message.reply_text(translator("dealers_cards_are").format(game.dealer.cardvalue,
-                                                                                   get_cards_string(game.dealer, lang_id)),
-                                            parse_mode=ParseMode.HTML)
+        # Merge dealer cards + evaluation into ONE message to avoid flood control
+        dealer_cards_str = get_cards_string(game.dealer, lang_id)
         evaluation_string = generate_evaluation_string(game, lang_id)
 
         newgame_button = InlineKeyboardButton(text=translator("inline_keyboard_newgame"), callback_data="newgame")
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[newgame_button]])
-        await update.effective_message.reply_text(evaluation_string, reply_markup=keyboard)
+
+        dealer_text = translator("dealers_cards_are").format(game.dealer.cardvalue, dealer_cards_str)
+        combined_text = dealer_text + "\n\n" + evaluation_string
+
+        # Throttle before sending combined result
+        await asyncio.sleep(_API_COOLDOWN)
+        await update.effective_message.reply_text(combined_text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
         game.stop(-1)
         return
 
