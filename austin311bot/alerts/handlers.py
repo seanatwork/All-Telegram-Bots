@@ -237,14 +237,65 @@ async def choose_radius_callback(update: Update, context: ContextTypes.DEFAULT_T
     db.add_subscription(user.id, alert_type, params=params)
     context.user_data.clear()
 
+    type_label = ALERT_TYPES.get(alert_type, "Alert")
     await query.edit_message_text(
         f"✅ *Subscribed!*\n\n"
-        f"*Alert:* Nearby 311 Reports\n"
+        f"*Alert:* {type_label}\n"
         f"*Radius:* {radius_label}\n"
         f"*Schedule:* Each morning\n\n"
         f"Use /myalerts to manage or /unsubscribe to stop.",
         parse_mode="Markdown",
     )
+
+
+# ── deep-link entry from austin311.com map popups ─────────────────────────────
+
+# Map short codes used in t.me/austin311bot?start=sub_<code>_<lat>_<lon> payloads
+# to the full alert_type values stored in the DB.
+_DEEP_LINK_TYPES = {
+    "311":    "nearby_311",
+    "animal": "animal_nearby",
+}
+
+
+async def start_subscribe_with_location(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    payload: str,
+) -> bool:
+    """Resume the subscribe flow at the radius-picker step.
+
+    Called from /start when the user arrived via a deep link of the form
+    `sub_<type>_<lat_microdeg>_<lon_microdeg>`. Returns True if the payload
+    was understood and a reply was sent; False otherwise.
+    """
+    parts = payload.split("_")
+    if len(parts) != 4 or parts[0] != "sub":
+        return False
+    alert_type = _DEEP_LINK_TYPES.get(parts[1])
+    if not alert_type:
+        return False
+    try:
+        lat = int(parts[2]) / 1_000_000
+        lon = int(parts[3]) / 1_000_000
+    except ValueError:
+        return False
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return False
+
+    context.user_data.clear()
+    context.user_data[_TYPE] = alert_type
+    context.user_data[_LAT] = lat
+    context.user_data[_LON] = lon
+
+    type_label = ALERT_TYPES.get(alert_type, "Alert")
+    await update.message.reply_text(
+        f"📍 *{type_label}*\n_Location pinned from austin311.com_\n\n"
+        "How far out should we watch?",
+        parse_mode="Markdown",
+        reply_markup=_radius_picker(),
+    )
+    return True
 
 
 async def enter_address_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
