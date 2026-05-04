@@ -34,11 +34,10 @@ _AWAITING_ADDRESS = "awaiting_address"
 _AWAITING_RADIUS  = "awaiting_radius"
 
 ALERT_TYPES = {
-    "crime_daily":     "🚨 Daily Crime Report",
-    "district_digest": "📊 Weekly District Digest",
     "nearby_311":      "📍 Nearby 311 Reports",
     "animal_nearby":   "🐾 Animal Incidents Near Me",
-    "crash_nearby":    "🚗 Crashes Near Me",
+    "crime_daily":     "🚨 Daily Crime Report",
+    "district_digest": "📊 Weekly District Digest",
 }
 
 DISTRICT_LABELS = {
@@ -113,11 +112,8 @@ def _latlon_to_district(lat: float, lon: float) -> str | None:
 
 def _type_picker() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚨 Daily Crime Report",      callback_data="sub_type_crime_daily")],
-        [InlineKeyboardButton("📊 Weekly District Digest",  callback_data="sub_type_district_digest")],
         [InlineKeyboardButton("📍 Nearby 311 Reports",      callback_data="sub_type_nearby_311")],
         [InlineKeyboardButton("🐾 Animal Incidents Near Me",callback_data="sub_type_animal_nearby")],
-        [InlineKeyboardButton("🚗 Crashes Near Me",         callback_data="sub_type_crash_nearby")],
         [InlineKeyboardButton("❌ Cancel",                   callback_data="sub_cancel")],
     ])
 
@@ -172,11 +168,10 @@ async def choose_type_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     alert_type = query.data.replace("sub_type_", "")
     context.user_data[_TYPE] = alert_type
 
-    _location_based = {"nearby_311", "animal_nearby", "crash_nearby"}
+    _location_based = {"nearby_311", "animal_nearby"}
     _intros = {
         "nearby_311":    ("📍 *Nearby 311 Reports*",      "New 311 requests filed within your chosen radius, sent each morning."),
         "animal_nearby": ("🐾 *Animal Incidents Near Me*", "Loose dogs, bites, and wildlife reports within your chosen radius, sent each morning."),
-        "crash_nearby":  ("🚗 *Crashes Near Me*",          "Traffic crashes within your chosen radius, sent each morning."),
     }
     if alert_type in _location_based:
         context.user_data[_STATE] = _AWAITING_ADDRESS
@@ -290,7 +285,7 @@ async def receive_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     lat, lon = coords
 
-    if alert_type in {"nearby_311", "animal_nearby", "crash_nearby"}:
+    if alert_type in {"nearby_311", "animal_nearby"}:
         context.user_data[_LAT] = lat
         context.user_data[_LON] = lon
         await msg.edit_text(
