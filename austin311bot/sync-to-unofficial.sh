@@ -25,6 +25,7 @@ EOF
 # noise/trends, homeless/trends, graffiti/trends, etc.) are owned by the batch
 # workflows on austin311bot-unofficial; syncing local stale copies overwrites them.
 cp "$SRC/docs/index.html"               "$WORK/docs/index.html"
+cp "$SRC/docs/pulse.json"               "$WORK/docs/pulse.json"
 cp "$SRC/docs/court/index.html"         "$WORK/docs/court/index.html"
 cp "$SRC/docs/court/trends/index.html"  "$WORK/docs/court/trends/index.html"
 mkdir -p "$WORK/docs/crashes"
