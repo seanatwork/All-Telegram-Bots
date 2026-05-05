@@ -20,7 +20,3 @@ primary_region = 'dfw'
   cpus = 1
   memory_mb = 512
 
-[[mounts]]
-  source      = "austin311_data"
-  destination = "/data"
-

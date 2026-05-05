@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 BASE = os.path.dirname(os.path.abspath(__file__))
 
 BOTS = [
-    ("austin311bot",     "austin311_bot.py",  "austin311_bot", "create_application"),
     ("film_bot",         "film_bot.py",        "film_bot",      "build_app"),
     ("gotwaterbot",      "gotwater.py",         "gotwater",      "build_app"),
     ("unitconverterbot", "uc.py",              "uc",            "build_app"),
@@ -74,7 +73,7 @@ async def run_app(name, mod, build_fn):
                 if app.running:
                     await app.stop()
             except Exception:
-                logger.exception(f"Error while stopping {name} after crash")
+                logger.exception(f"Error while stopping {app} after crash")
             
             await asyncio.sleep(delay)
             delay = min(delay * 2, 60)

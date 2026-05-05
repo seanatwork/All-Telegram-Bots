@@ -1,16 +1,30 @@
 # All-Telegram-Bots
 
+## Current Bots
+
+This monorepo runs the following bots as concurrent tasks in a single Fly.io machine:
+
+| Bot | Folder | Token Env Var |
+|---|---|---|
+| Film Bot | `film_bot/` | `FILM_BOT_TOKEN` |
+| Got Water Bot | `gotwaterbot/` | `GOTWATER_BOT_TOKEN` |
+| Unit Converter Bot | `unitconverterbot/` | `UC_BOT_TOKEN` |
+| WSH Nationals Bot | `wshnationalsbot/` | `WSHNATS_BOT_TOKEN` |
+| Uno Bot | `unobot/` | `UNO_BOT_TOKEN` (optional) |
+| XO Game Bot | `xogamebot/` | `XO_BOT_TOKEN` (optional) |
+| Blackjack Bot | `blackjackbot/` | `BLACKJACK_BOT_TOKEN` (optional) |
+
+> **Austin 311 Bot has been fully removed from this repo.** It now lives entirely in `seanatwork/austin311bot-unofficial` (GitHub Pages + code) and will get its own Fly.io deployment later.
+
 ## Fly.io Deployment
 
 - **App name**: `all-telegram-bots`
 - **Machine**: 1x `shared-cpu-1x:512MB` in `iad` region
 - **Entrypoint**: `python main.py`
-- **Volume**: `austin311_data` mounted at `/data` (1GB)
 - **Primary region**: `dfw`
 - **Deploy strategy**: immediate
 
 ### Current Secrets
-- `AUSTIN311_BOT_TOKEN`
 - `CHAT_ID`
 - `FILM_BOT_TOKEN`
 - `GOOGLE_MAPS_API_KEY`
@@ -19,11 +33,9 @@
 - `TMDB_API_KEY`
 - `UC_BOT_TOKEN`
 - `WSHNATS_BOT_TOKEN`
-- `ALERT_CHAT_ID`
-- `ALERTS_DB_PATH`
-- `AUSTINAPIKEY`
 - `UNO_BOT_TOKEN`
 - `XO_BOT_TOKEN`
+- `BLACKJACK_BOT_TOKEN`
 
 ## Uno Bot (`unobot/`)
 
