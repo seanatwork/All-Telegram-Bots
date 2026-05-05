@@ -158,11 +158,31 @@ def _count_311_24h() -> int:
 # ── Counter 2: fatal crashes in last 90 days ─────────────────────────────────
 
 def _count_fatal_crashes_90d() -> int:
-    """Count fatal crashes from APD Crash Data (y2wy-tgr5), last 90 days."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=90))
+    """Count fatal crashes from APD Crash Data (y2wy-tgr5), last 90 days reporting window."""
+    session = _get_session()
+
+    # Step 1: get the latest crash timestamp in the dataset (accounts for publication lag)
+    max_params: dict = {"$select": "max(crash_timestamp)"}
+    token = _app_token()
+    if token:
+        max_params["$$app_token"] = token
+    try:
+        resp = session.get(
+            f"{SOCRATA_BASE}/{FATAL_CRASHES_DATASET}.json",
+            params=max_params,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        latest = resp.json()
+        latest_ts = datetime.fromisoformat(latest[0]["max_crash_timestamp"])
+    except Exception as e:
+        logger.warning(f" fatal crashes — could not fetch latest timestamp: {e}")
+        # fallback: today's date (but this would include lag days with no data)
+        latest_ts = datetime.now(timezone.utc)
+
+    cutoff = latest_ts - timedelta(days=90)
     cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%S.000")
 
-    session = _get_session()
     params = {
         "$where": f"crash_timestamp >= '{cutoff_str}' AND crash_fatal_fl = true",
         "$limit": 5000,
